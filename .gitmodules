@@ -1,0 +1,21 @@
+[submodule "lib/Adafruit_SSD1306"]
+	path = lib/Adafruit_SSD1306
+	url = https://github.com/adafruit/Adafruit_SSD1306.git
+[submodule "lib/DHT-sensor-library"]
+	path = lib/DHT-sensor-library
+	url = https://github.com/adafruit/DHT-sensor-library.git
+[submodule "lib/NTPClient"]
+	path = lib/NTPClient
+	url = https://github.com/arduino-libraries/NTPClient.git
+[submodule "lib/ArduinoJson"]
+	path = lib/ArduinoJson
+	url = https://github.com/bblanchon/ArduinoJson.git
+[submodule "lib/WiFiManager"]
+	path = lib/WiFiManager
+	url = https://github.com/tzapu/WiFiManager.git
+[submodule "lib/Timezone"]
+	path = lib/Timezone
+	url = https://github.com/JChristensen/Timezone.git
+[submodule "lib/RTClib"]
+	path = lib/RTClib
+	url = https://github.com/adafruit/RTClib.git
