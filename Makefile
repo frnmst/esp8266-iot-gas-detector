@@ -20,11 +20,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
-ver := $(shell grep "#define VERSION \"" src/version.h | awk '{ print $$3}' | tr -d '"')
+ver := $(shell grep "#define VERSION \"" project_alpha/version.h | awk '{ print $$3}' | tr -d '"')
 
 bump:
 	echo $(ver)
-	find -regextype grep -regex './src/\(.*\.h\|.*\.ino\)' -exec sed -i 's/version [0-9]\+\.[0-9]\+\.[0-9]\+/version $(ver)/' {} \;
+	find -regextype grep -regex './project_alpha/\(.*\.h\|.*\.ino\)' -exec sed -i 's/version [0-9]\+\.[0-9]\+\.[0-9]\+/version $(ver)/' {} \;
 	@echo "Remember to create a new git tag!"
 
 default: bump

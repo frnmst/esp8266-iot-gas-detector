@@ -1,4 +1,4 @@
-/* version 0.4.0 
+/* version 0.5.0
  *
  * MIT License
  *
@@ -515,6 +515,7 @@ void loop()
 
     if (!gasDetected)
     {
+        // Avoid displaying data if an alarm can still be raised sequentially.
         clearDisplay();
         display.println(dTime);
         display.println(dDate);
