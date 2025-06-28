@@ -1,4 +1,4 @@
-/* version 0.4.0
+/* version 0.4.0 
  *
  * MIT License
  *
@@ -353,7 +353,9 @@ void setup()
     if (rtc.lostPower() || sketchJustUploaded()) {
         // When time needs to be set on a new device, or after a power loss, the
         // following line sets the RTC to the date & time this sketch was compiled
-        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+        DateTime now = DateTime(F(__DATE__), F(__TIME__));
+        DateTime compensated_datetime = now + Config::DateTime::COMPILATION_SECONDS_OFFSET;
+        rtc.adjust(compensated_datetime);
         // This line sets the RTC with an explicit date & time, for example to set
         // January 21, 2014 at 3am you would call:
         // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
@@ -511,15 +513,18 @@ void loop()
     String dTime = getCurrentTime(now);
     String dDate = getCurrentDate(now);
 
-    clearDisplay();
-    display.println(dTime);
-    display.println(dDate);
-    display.print(averageTemperatureReading);
-    display.println(" oC");
-    display.print(averageHumidityReading);
-    display.println(" %H");
-    display.display();
-
+    if (!gasDetected)
+    {
+        clearDisplay();
+        display.println(dTime);
+        display.println(dDate);
+        display.print(averageTemperatureReading);
+        display.println(" oC");
+        display.print(averageHumidityReading);
+        display.println(" %H");
+        display.display();
+    }
+    
     // Use non-blocking code.
     if (currentMillis - previousMillis >= Config::Sensor::Setting::READING_TIMEOUT_MS)
     {
@@ -564,6 +569,10 @@ void loop()
         prtn(averageTemperatureReading);
         prt("avg humd: ");
         prtn(averageHumidityReading);
+        prt("DHT11 temp: ");
+        prtn(temperatureCelsiusDht11);
+        prt("DS3231 temp: ");
+        prtn(temperatureCelsiusDs3231);
         prt("gas tendency: ");
         prtn(gasTendency);
         prt("ISO 8601: ");
