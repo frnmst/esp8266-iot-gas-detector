@@ -20,11 +20,11 @@ Arduino IDE:
 ## Version
 
 This project follows [Semver 2.0](https://semver.org/). Please look at the
-[src/version.h](./src/version.h) file.
+[project_alpha/version.h](./project_alpha/version.h) file.
 
 Bump the version by:
 
-1. updating the version number in `./src/version.h`
+1. updating the version number in `./project_alpha/version.h`
 2. running `make`
 
 ## License
