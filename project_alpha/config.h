@@ -132,6 +132,7 @@ struct Config {
         struct Tz {
             static const TimeChangeRule DST;
             static const TimeChangeRule STD;
+            static const long COMPUTER_NAIVE_TIME_TO_UTC_SECONDS_OFFSET;
         };
         struct Format {
             static const char* TIME;
@@ -156,10 +157,14 @@ struct Config {
 /* Time adjustment
  * e.g., for Rome, Italy.
  */
+// On compilation between Oct and Mar set -3600. On compilation between Apr and Feb set -7200.
+const long Config::DateTime::Tz::COMPUTER_NAIVE_TIME_TO_UTC_SECONDS_OFFSET = -3600;
+
 // DST starts last Sunday in March.
-const TimeChangeRule Config::DateTime::Tz::DST = {"DST", Last, Sun, Mar, 2, 120};
+const TimeChangeRule Config::DateTime::Tz::DST = {"CEST", Last, Sun, Mar, 2, 120};
+
 // STD starts last Sunday in October.
-const TimeChangeRule Config::DateTime::Tz::STD = {"STD", Last, Sun, Oct, 3, 60};
+const TimeChangeRule Config::DateTime::Tz::STD = {"CET", Last, Sun, Oct, 3, 60};
 
 /* Network */
 // Define the constants for the Networkstruct

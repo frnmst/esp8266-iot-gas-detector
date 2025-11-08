@@ -354,7 +354,9 @@ void setup()
         // When time needs to be set on a new device, or after a power loss, the
         // following line sets the RTC to the date & time this sketch was compiled
         DateTime now = DateTime(F(__DATE__), F(__TIME__));
-        DateTime compensated_datetime = now + Config::DateTime::COMPILATION_SECONDS_OFFSET;
+
+        // Compensate for local naive to UTC as well.
+        DateTime compensated_datetime = now + Config::DateTime::COMPILATION_SECONDS_OFFSET + Config::DateTime::Tz::COMPUTER_NAIVE_TIME_TO_UTC_SECONDS_OFFSET;
         rtc.adjust(compensated_datetime);
         // This line sets the RTC with an explicit date & time, for example to set
         // January 21, 2014 at 3am you would call:
@@ -508,10 +510,20 @@ void loop()
     int dummy = 0;
     unsigned long currentMillis = millis();
 
-    DateTime now = rtc.now();
+    // Read the time from the RTC.
+    DateTime dTimeNow = rtc.now();
 
-    String dTime = getCurrentTime(now);
-    String dDate = getCurrentDate(now);
+    // Set the board time.
+    setTime(dTimeNow.unixtime());
+
+    TimeChangeRule *tcr;
+    // current time from the Time Library.
+    time_t utc = now();
+    // Transform the board time to localtime.
+    time_t localTime = localTZ.toLocal(utc, &tcr);
+
+    String dTime = getCurrentTime(localTime);
+    String dDate = getCurrentDate(localTime);
 
     if (!gasDetected)
     {
@@ -560,7 +572,7 @@ void loop()
         averageGasReadingVolts = (averageGasReading / 1023) * 5;
         sprintf(averageGasReadingNormalizedChar, "%.6f", averageGasReadingVolts);
 
-        iso8601Timestamp = epochToIso8601(now.unixtime());
+        iso8601Timestamp = epochToIso8601(dTimeNow.unixtime());
 
         prt("MQ2 sensor avg V: ");
         prtn(averageGasReadingVolts);

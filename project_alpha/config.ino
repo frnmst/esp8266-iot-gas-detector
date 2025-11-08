@@ -31,7 +31,7 @@
  *     2 = 180°
  *     3 = 270°
 */
-const int Config::Display::ROTATION = 2;
+const int Config::Display::ROTATION = 0;
 
 // Fine tune calibration.
 // Summer values: 0,0,0,0
@@ -45,7 +45,7 @@ const bool Config::Wifi::WORK_OFFLINE = true;
 
 /* Time and date. */
 // The number of seconds to compensate between compiler timestamp and first boot.
-const long Config::DateTime::COMPILATION_SECONDS_OFFSET = 40;
+const long Config::DateTime::COMPILATION_SECONDS_OFFSET = 60;
 
 const char* Config::DateTime::NTP_SERVER = "ntp1.inrim.it";
 const char* Config::DateTime::Format::TIME = "%H:%M:%S";
