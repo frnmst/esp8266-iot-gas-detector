@@ -151,6 +151,11 @@ struct Config {
     struct Other {
         static const bool BOOT_GAS_ALARM_SELF_TEST = false;
         static const char* GAS_ALARM_TEXT;
+
+        // Display extra debug only if main debug is enabled.
+        static const bool DISPLAY_EXTRA_DEBUG_INFO = true;
+
+        static const int DEBUG_SPEED = 9600;
     };
 };
 

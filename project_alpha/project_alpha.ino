@@ -37,6 +37,7 @@
 #include <TimeLib.h>
 #include <Timezone.h>
 #include "RTClib.h"
+#include "uptime.h"
 
 #include "config.h"
 #include "version.h"
@@ -57,6 +58,7 @@ float averageGasReadingVolts;
 char averageGasReadingNormalizedChar[32];
 static int gasIndex = 0, temperatureIndex = 0, humidityIndex = 0;
 int gasState, gasTendency = 0;
+char temperatureRelativeTendency = 0, humidityRelativeTendency = 0;
 bool inverted = false, gasDetected = false;
 unsigned long previousMillis = 0, previousMillisNetworkCheck;
 WiFiClientSecure httpsClient;
@@ -64,7 +66,7 @@ WiFiClientSecure httpsClient;
 WiFiUDP udp;
 // Create an NTPClient instance: always work in UTC.
 NTPClient timeClient(udp, Config::DateTime::NTP_SERVER, 0);
-int check_wifi = 1;
+int checkWifi = 1, printDebugCounter = 0;
 
 String iso8601Timestamp = "";
 
@@ -172,13 +174,64 @@ void printDisplay(String text, int timeout = 5000, bool center = false)
     delay(timeout);
 }
 
-// Function to read sensor value and update index and total
-void updateSensorData(float sensor_value, float* sensorReadings, int& index, float& total, int& tendency)
+
+float getHalfRollingAverage(float* sensorReadings, int& index, bool oldData)
+{
+    bool done = false;
+    int j = index, itera = 0, ii;
+    float total = 0, avg = 0;
+
+    while (!done)
+    {
+        if (oldData)
+        {
+            ii = (j + 1) % Config::Sensor::Setting::READINGS_BUFFER;
+            j++;
+        }
+        else
+        {
+            ii = j % Config::Sensor::Setting::READINGS_BUFFER;
+            j--;
+        }
+
+        total += sensorReadings[ii];
+        itera += 1;
+        if (itera >= floor(Config::Sensor::Setting::READINGS_BUFFER / 2))
+        {
+            done = true;
+            avg = total / itera;
+        }
+    }
+
+    return avg;
+}
+
+// Function to read sensor value and update index and total.
+void updateSensorData(float sensor_value, float* sensorReadings, int& index, float& total, int& tendency, char& relativeTendency)
 {
     float prevTotal = total;
     total = total - sensorReadings[index];
     sensorReadings[index] = sensor_value;
     total = total + sensorReadings[index];
+
+    /* Old. */
+    float oldAvg = getHalfRollingAverage(sensorReadings, index, true);
+    /* New. */
+    float newAvg = getHalfRollingAverage(sensorReadings, index, false);
+
+    /* See
+     * https://learn.adafruit.com/adafruit-gfx-graphics-library/graphics-primitives
+     * for char table.
+     */
+    if (newAvg > oldAvg)
+        /* Higher. */
+        relativeTendency = (char)24;
+    else if (newAvg < oldAvg)
+        /* Lower. */
+        relativeTendency = (char)25;
+    else
+        /* Equal. */
+        relativeTendency = (char)29;
 
     // Move to the next position in the array.
     index = (index + 1) % Config::Sensor::Setting::READINGS_BUFFER;
@@ -187,14 +240,16 @@ void updateSensorData(float sensor_value, float* sensorReadings, int& index, flo
     if (prevTotal > total)
         tendency += 1;
     else if (prevTotal == total)
+    {
         // Flatten if the reading does not change.
         if (tendency < 0)
             tendency = 0;
         else
             // Adjust to -10% the alarm value.
             tendency -= (int) (Config::Triggers::GAS_ALARM_TENDENCY_ITERATIONS * 0.10);
-        else if (prevTotal < total)
-            tendency -= 1;
+    }
+    else if (prevTotal < total)
+        tendency -= 1;
 }
 
 bool connectManualWifi()
@@ -324,9 +379,9 @@ void setup()
 
     if (PRINT_DEBUG)
     {
-        Serial.begin(9600);
+        Serial.begin(Config::Other::DEBUG_SPEED);
 
-        // Give time to flush the output.
+        // Give time to flush the output on the "Serial Monitor".
         delay(5000);
     }
 
@@ -337,18 +392,21 @@ void setup()
 
     while (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
         prtn(F("SSD1306 allocation failed"));
-        delay(1000);
+        beep(3);
+        delay(2000);
     }
     display.setRotation(Config::Display::ROTATION);
 
     while (!rtc.begin()) {
         prtn("RTC error");
+        beep(4);
         printDisplay("RTC error", 1000, true);
+        delay(2000);
     }
 
-    prt("ver. ");
+    prt("SW version ");
     prtn(VERSION);
-    printDisplay(String("ver.\n") + String(VERSION), 2500, false);
+    printDisplay(String("SW version\n") + String(VERSION), 2000, false);
 
     if (rtc.lostPower() || sketchJustUploaded()) {
         // When time needs to be set on a new device, or after a power loss, the
@@ -508,7 +566,10 @@ void raiseGasAlarm()
 void loop()
 {
     int dummy = 0;
+    char dummy2 = 0;
     unsigned long currentMillis = millis();
+
+    uptime::calculateUptime();
 
     // Read the time from the RTC.
     DateTime dTimeNow = rtc.now();
@@ -531,10 +592,14 @@ void loop()
         clearDisplay();
         display.println(dTime);
         display.println(dDate);
-        display.print(averageTemperatureReading);
-        display.println(" oC");
-        display.print(averageHumidityReading);
-        display.println(" %H");
+        display.print(averageTemperatureReading, 2);
+        display.print(" ");
+        display.print((char)247);
+        display.print("C ");
+        display.println(temperatureRelativeTendency);
+        display.print(averageHumidityReading, 2);
+        display.print(" %H ");
+        display.println(humidityRelativeTendency);
         display.display();
     }
     
@@ -561,11 +626,11 @@ void loop()
             beep(Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_ITERATIONS);
         }
 
-        updateSensorData(gasConcentration, gasSensorReadings, gasIndex, gasTotal, gasTendency);
+        updateSensorData(gasConcentration, gasSensorReadings, gasIndex, gasTotal, gasTendency, dummy2);
         averageGasReading = gasTotal / Config::Sensor::Setting::READINGS_BUFFER;
-        updateSensorData(temperatureCelsius, temperatureSensorReadings, temperatureIndex, temperatureTotal, dummy);
+        updateSensorData(temperatureCelsius, temperatureSensorReadings, temperatureIndex, temperatureTotal, dummy, temperatureRelativeTendency);
         averageTemperatureReading = temperatureTotal / Config::Sensor::Setting::READINGS_BUFFER;
-        updateSensorData(humidityPercent, humiditySensorReadings, humidityIndex, humidityTotal, dummy);
+        updateSensorData(humidityPercent, humiditySensorReadings, humidityIndex, humidityTotal, dummy, humidityRelativeTendency);
         averageHumidityReading = humidityTotal / Config::Sensor::Setting::READINGS_BUFFER;
 
         // Transform into volts. The sensor is on the 5V rail.
@@ -612,7 +677,43 @@ void loop()
             invertDisplayColors();
 
         if (PRINT_DEBUG)
-            printDisplay("SERIAL DBG", 1000, true);
+        {
+            switch (printDebugCounter)
+            {
+                case 0:
+                    printDisplay("SERIAL DBG", 1000, true);
+                    if (Config::Other::DISPLAY_EXTRA_DEBUG_INFO)
+                        printDebugCounter += 1;
+                    break;
+                case 1:
+                    printDisplay(String(Config::Other::DEBUG_SPEED) + String(" Bd"), 1000, true);
+                    printDebugCounter += 1;
+                    break;
+                case 2:
+                    char averageGasReadingNormalizedCharTmp[8];
+                    sprintf(averageGasReadingNormalizedCharTmp, "%.2f", averageGasReadingVolts);
+                    printDisplay(String(averageGasReadingNormalizedCharTmp) + String(" gas"), 1000, true);
+                    printDebugCounter += 1;
+                    break;
+                case 3:
+                    printDisplay(String(uptime::getDays())+ String("d") + String(uptime::getHours()) + String("h up"), 1000, true);
+                    printDebugCounter += 1;
+                    break;
+                case 4:
+                    if (Config::Wifi::WORK_OFFLINE)
+                        printDisplay("OFFLN MODE", 1000, true);
+                    else
+                        printDisplay("ONLIN MODE", 1000, true);
+
+                    // Rotate debug prints.
+                    printDebugCounter = 0;
+                    break;
+                default:
+                    // Rotate debug prints.
+                    printDebugCounter = 0;
+                    break;
+            }
+        }
 
         previousMillisNetworkCheck = currentMillis;
 
@@ -661,11 +762,11 @@ void loop()
         }
         else
         {
-            check_wifi++;
+            checkWifi++;
         }
     }
 
-    if (!Config::Wifi::WORK_OFFLINE && check_wifi % 10 == 0 && WiFi.status() != WL_CONNECTED)
+    if (!Config::Wifi::WORK_OFFLINE && checkWifi % 10 == 0 && WiFi.status() != WL_CONNECTED)
     {
         // This block is never called in offline mode.
 
@@ -677,6 +778,6 @@ void loop()
         printDisplay("NO WiFi\nretrying...");
         WiFi.reconnect();
         clearDisplay();
-        check_wifi = 1;
+        checkWifi = 1;
     }
 }
