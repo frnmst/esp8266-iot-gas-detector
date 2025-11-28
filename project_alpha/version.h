@@ -1,4 +1,4 @@
-/* version 0.6.0
+/* version 0.7.1
  *
  * MIT License
  *
@@ -25,6 +25,6 @@
 #ifndef VERSION_H
 #define VERSION_H
 
-#define VERSION "0.6.0"
+#define VERSION "0.7.1"
 
 #endif // VERSION_H

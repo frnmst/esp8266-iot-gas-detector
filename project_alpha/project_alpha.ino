@@ -1,4 +1,4 @@
-/* version 0.6.0
+/* version 0.7.1
  *
  * MIT License
  *
@@ -700,6 +700,10 @@ void loop()
                     printDebugCounter += 1;
                     break;
                 case 4:
+                    printDisplay(String("SV ") + String(VERSION), 1000, true);
+                    printDebugCounter += 1;
+                    break;
+                case 5:
                     if (Config::Wifi::WORK_OFFLINE)
                         printDisplay("OFFLN MODE", 1000, true);
                     else
