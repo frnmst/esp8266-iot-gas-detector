@@ -9,13 +9,34 @@
 All these libraries are required as dependencies and can be installed via the
 Arduino IDE:
 
-- [Adafruit SSD1306](https://github.com/adafruit/Adafruit_SSD1306)
-- [DHT sensor library](https://github.com/adafruit/DHT-sensor-library)
-- [ArduinoJson](https://arduinojson.org)
-- [NTPClient](https://github.com/arduino-libraries/NTPClient)
-- [WiFiManager](https://github.com/tzapu/WiFiManager)
-- [Timezone](https://github.com/JChristensen/Timezone)
-- [RTCLib](https://github.com/adafruit/RTClib)
+| Library name | Author |
+|--------------|--------|
+| [Adafruit SSD1306](https://github.com/adafruit/Adafruit_SSD1306) | [Adafruit](https://www.adafruit.com/) |
+| [DHT sensor library](https://github.com/adafruit/DHT-sensor-library) | [Adafruit](https://www.adafruit.com/) |
+| [ArduinoJson](https://arduinojson.org) | [Benoît Blanchon](https://github.com/bblanchon) |
+| [NTPClient](https://github.com/arduino-libraries/NTPClient) | Fabrice Weinberg |
+| [WiFiManager](https://github.com/tzapu/WiFiManager) | [tzapu](https://github.com/tzapu/) |
+| [Timezone](https://github.com/JChristensen/Timezone) | [Jack Christensen](https://github.com/JChristensen)
+| [RTCLib](https://github.com/adafruit/RTClib) | [Adafruit](https://www.adafruit.com/) |
+| [Uptime-Library](https://github.com/YiannisBourkelis/Uptime-Library) | [Yiannis Bourkelis](https://github.com/YiannisBourkelis) |
+
+## Board
+
+### IDE Setup
+
+This project uses an ESP8266 board. Follow [these](https://arduino-esp8266.readthedocs.io/en/latest/installing.html) instructions to set it up.
+
+### USB modem setup
+
+#### Debian GNU/Linux 13
+
+1. add your user to the dialout group
+
+   ```shell
+   sudo usermod -a -G dialout $USER
+   ```
+
+2. reboot
 
 ## Version
 
@@ -50,3 +71,4 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
