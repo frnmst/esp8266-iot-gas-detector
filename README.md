@@ -14,7 +14,7 @@ Arduino IDE:
 | [Adafruit SSD1306](https://github.com/adafruit/Adafruit_SSD1306) | [Adafruit](https://www.adafruit.com/) |
 | [DHT sensor library](https://github.com/adafruit/DHT-sensor-library) | [Adafruit](https://www.adafruit.com/) |
 | [ArduinoJson](https://arduinojson.org) | [Benoît Blanchon](https://github.com/bblanchon) |
-| [NTPClient](https://github.com/arduino-libraries/NTPClient) | Fabrice Weinberg |
+| [NTPClient](https://github.com/arduino-libraries/NTPClient) | [Fabrice Weinberg](https://github.com/arduino-libraries) |
 | [WiFiManager](https://github.com/tzapu/WiFiManager) | [tzapu](https://github.com/tzapu/) |
 | [Timezone](https://github.com/JChristensen/Timezone) | [Jack Christensen](https://github.com/JChristensen)
 | [RTCLib](https://github.com/adafruit/RTClib) | [Adafruit](https://www.adafruit.com/) |
