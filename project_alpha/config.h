@@ -1,4 +1,4 @@
-/* version 0.7.1
+/* version 0.8.0
  *
  * MIT License
  *
@@ -156,7 +156,7 @@ struct Config {
         // Display extra debug only if main debug is enabled.
         static const bool DISPLAY_EXTRA_DEBUG_INFO = true;
 
-        static const int DEBUG_SPEED = 9600;
+        static const int DEBUG_SPEED = 115200;
 
         static const int BUILTIN_LED_MAX_PWM_VALUE = 255;
         static const bool ENABLE_LED_HEARTBEAT;

@@ -1,4 +1,4 @@
-/* version 0.7.1
+/* version 0.8.0
  *
  * MIT License
  *
@@ -385,16 +385,12 @@ void setup()
     if (PRINT_DEBUG)
     {
         Serial.begin(Config::Other::DEBUG_SPEED);
-
-        // Give time to flush the output on the "Serial Monitor".
-        delay(5000);
+        Serial.flush();
     }
 
     pinMode(Config::Pins::Digital::NOSE, INPUT);
     pinMode(Config::Pins::Digital::BUZZER, OUTPUT);
     pinMode(Config::Pins::Digital::LED, OUTPUT);
-
-    signal(1);
 
     while (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
         prtn(F("SSD1306 allocation failed"));
@@ -410,6 +406,7 @@ void setup()
         delay(2000);
     }
 
+    signal(1);
     prt("SW version ");
     prtn(VERSION);
     printDisplay(String("SW version\n") + String(VERSION), 2000, false);
@@ -441,6 +438,8 @@ void setup()
     dht.begin();
 
     prtn("Warming up MQ-2 sensor");
+
+    // The MQ-2 sensor senses the gas after a few seconds.
     delay(4000);
 
     /* If still not in temperature and within timeout, continue waiting. */
