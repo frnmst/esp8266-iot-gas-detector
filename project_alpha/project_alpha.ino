@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (c) 2024-2025 Franco Masotti
+ * Copyright (c) 2024-2026 Franco Masotti
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,7 +59,7 @@ char averageGasReadingNormalizedChar[32];
 static int gasIndex = 0, temperatureIndex = 0, humidityIndex = 0;
 int gasState, gasTendency = 0;
 char temperatureRelativeTendency = 0, humidityRelativeTendency = 0;
-bool inverted = false, gasDetected = false;
+bool inverted = false, gasDetected = false, ledOn = false;
 unsigned long previousMillis = 0, previousMillisNetworkCheck;
 WiFiClientSecure httpsClient;
 // Create a UDP instance.
@@ -67,6 +67,9 @@ WiFiUDP udp;
 // Create an NTPClient instance: always work in UTC.
 NTPClient timeClient(udp, Config::DateTime::NTP_SERVER, 0);
 int checkWifi = 1, printDebugCounter = 0;
+int builtinLedBrightness = 0, builtinLedFadeAmount = 5;
+unsigned long previousMillisBuiltinLedHeartbeat = 0;
+const long builtinLedHeartbeatInterval = 5;
 
 String iso8601Timestamp = "";
 
@@ -78,13 +81,15 @@ String iso8601Timestamp = "";
     #define prtn(x)
 #endif
 
-void beep(int repetitions = 2, bool invertColors = false)
+void signal(int repetitions = 2, bool invertColors = false)
 {
     for (int i = 0; i < repetitions; i++)
     {
         digitalWrite(Config::Pins::Digital::BUZZER, HIGH);
+        digitalWrite(Config::Pins::Digital::LED, LOW);  // Turn the LED on (Note that LOW is the voltage level but actually the LED is on; this is because it is active low on the ESP-01)
         delay(Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_DELAY_MS);
         digitalWrite(Config::Pins::Digital::BUZZER, LOW);
+        digitalWrite(Config::Pins::Digital::LED, HIGH);  // Turn the LED off by making the voltage HIGH
         delay(Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_DELAY_MS);
         if (invertColors)
             invertDisplayColors();
@@ -273,12 +278,12 @@ bool connectManualWifi()
         prtn("Connecting to WiFi...");
         if (Config::Wifi::IGNORE_MISSING_WIFI_ON_MANUAL && attempts >= 10)
         {
-            beep(2);
+            signal(2);
             return false;
         }
         attempts++;
     }
-    beep(1);
+    signal(1);
     return true;
 }
 
@@ -304,13 +309,13 @@ bool connectAutoWifi()
     {
         prtn("connected to WiFi");
         printDisplay("connected to WiFi", 1000);
-        beep(1);
+        signal(1);
     }
     else
     {
         prtn("unable to connect to WiFi");
         printDisplay("unable to connect to WiFi");
-        beep(2);
+        signal(2);
     }
 
     return wifi;
@@ -387,19 +392,20 @@ void setup()
 
     pinMode(Config::Pins::Digital::NOSE, INPUT);
     pinMode(Config::Pins::Digital::BUZZER, OUTPUT);
+    pinMode(Config::Pins::Digital::LED, OUTPUT);
 
-    beep(1);
+    signal(1);
 
     while (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
         prtn(F("SSD1306 allocation failed"));
-        beep(3);
+        signal(3);
         delay(2000);
     }
     display.setRotation(Config::Display::ROTATION);
 
     while (!rtc.begin()) {
         prtn("RTC error");
-        beep(4);
+        signal(4);
         printDisplay("RTC error", 1000, true);
         delay(2000);
     }
@@ -435,8 +441,13 @@ void setup()
     dht.begin();
 
     prtn("Warming up MQ-2 sensor");
+    delay(4000);
 
-    for (i = 0; i < Config::Sensor::Setting::MQ_2_WARM_UP_MS / 1000; i++)
+    /* If still not in temperature and within timeout, continue waiting. */
+    for (i = 0;
+         i < Config::Sensor::Setting::MQ_2_WARM_UP_MS / 1000 && digitalRead(Config::Pins::Digital::NOSE) == LOW;
+         i++
+    )
     {
         prt("warming ");
         prt(i);
@@ -558,7 +569,7 @@ void raiseGasAlarm()
 {
     prtn("The gas is present");
     printDisplay(Config::Other::GAS_ALARM_TEXT, 0, true);
-    beep(Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_ITERATIONS, true);
+    signal(Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_ITERATIONS, true);
     // Reset display colors.
     display.invertDisplay(false);
 }
@@ -623,7 +634,7 @@ void loop()
             prtn("Warning DHT11 or DS3231 is NaN");
             temperatureCelsius = temperatureSensorReadings[temperatureIndex];
             humidityPercent = humiditySensorReadings[humidityIndex];
-            beep(Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_ITERATIONS);
+            signal(Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_ITERATIONS);
         }
 
         updateSensorData(gasConcentration, gasSensorReadings, gasIndex, gasTotal, gasTendency, dummy2);
@@ -783,5 +794,17 @@ void loop()
         WiFi.reconnect();
         clearDisplay();
         checkWifi = 1;
+    }
+
+    if (Config::Other::ENABLE_LED_HEARTBEAT
+        && currentMillis - previousMillisBuiltinLedHeartbeat >= builtinLedHeartbeatInterval)
+    {
+        previousMillisBuiltinLedHeartbeat = currentMillis;
+        analogWrite(Config::Pins::Digital::LED, builtinLedBrightness);
+        builtinLedBrightness = builtinLedBrightness + builtinLedFadeAmount;
+
+        // Reverse the direction of the fading at the ends of the fade.
+        if (builtinLedBrightness <= 0 || builtinLedBrightness >= Config::Other::BUILTIN_LED_MAX_PWM_VALUE)
+            builtinLedFadeAmount = -builtinLedFadeAmount;
     }
 }

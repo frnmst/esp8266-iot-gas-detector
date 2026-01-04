@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (c) 2024-2025 Franco Masotti
+ * Copyright (c) 2024-2026 Franco Masotti
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -110,6 +110,7 @@ struct Config {
             static const int BOARD_LED = 2;
             static const int DHT_11 = 12;
             static const int NOSE = 14;
+            static const int LED = LED_BUILTIN;
         };
         struct Analog {
             static const int RTC = 999;
@@ -156,6 +157,9 @@ struct Config {
         static const bool DISPLAY_EXTRA_DEBUG_INFO = true;
 
         static const int DEBUG_SPEED = 9600;
+
+        static const int BUILTIN_LED_MAX_PWM_VALUE = 255;
+        static const bool ENABLE_LED_HEARTBEAT;
     };
 };
 

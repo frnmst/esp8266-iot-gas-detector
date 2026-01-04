@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (c) 2024-2025 Franco Masotti
+ * Copyright (c) 2024-2026 Franco Masotti
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -63,3 +63,6 @@ const int Config::Sensor::Setting::MQ_2_WARM_UP_MS = 60000;
 
 // Time in ms between readings during the initial boot phase.
 const unsigned long Config::Sensor::Setting::BOOT_READING_TIMEOUT_MS = 1200;
+
+// Ser to true if you want to use the built-in LED to show the board is working.
+const bool Config::Other::ENABLE_LED_HEARTBEAT = true;
