@@ -59,7 +59,7 @@ char averageGasReadingNormalizedChar[32];
 static int gasIndex = 0, temperatureIndex = 0, humidityIndex = 0;
 int gasState, gasTendency = 0;
 char temperatureRelativeTendency = 0, humidityRelativeTendency = 0;
-bool inverted = false, gasDetected = false, ledOn = false;
+bool inverted = false, gasDetected = false;
 unsigned long previousMillis = 0, previousMillisNetworkCheck;
 WiFiClientSecure httpsClient;
 // Create a UDP instance.
@@ -327,7 +327,7 @@ bool syncRTC()
 
     if (timeClient.update())
     {
-        time_t localTime = localTZ.toLocal(timeClient.getEpochTime());
+        time_t localTime = localTZ.toLocal(timeClient.getEpochTime()) + Config::DateTime::Tz::COMPUTER_NAIVE_TIME_TO_UTC_SECONDS_OFFSET;
         // Set the RTC with the epoch time + TZ offset from NTP.
         rtc.adjust(DateTime(localTime));
         return true;
