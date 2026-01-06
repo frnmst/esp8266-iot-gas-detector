@@ -60,7 +60,7 @@ static int gasIndex = 0, temperatureIndex = 0, humidityIndex = 0;
 int gasState, gasTendency = 0;
 char temperatureRelativeTendency = 0, humidityRelativeTendency = 0;
 bool inverted = false, gasDetected = false;
-unsigned long previousMillis = 0, previousMillisNetworkCheck;
+unsigned long previousMillis = 0, previousMillisNetworkCheck = 0, previousMillisBuiltinLedHeartbeat = 0, previousMillisTimestampUpdate = 0, previousMillisDisplayData = 0;
 WiFiClientSecure httpsClient;
 // Create a UDP instance.
 WiFiUDP udp;
@@ -68,8 +68,9 @@ WiFiUDP udp;
 NTPClient timeClient(udp, Config::DateTime::NTP_SERVER, 0);
 int checkWifi = 1, printDebugCounter = 0;
 int builtinLedBrightness = 0, builtinLedFadeAmount = 5;
-unsigned long previousMillisBuiltinLedHeartbeat = 0;
-const long builtinLedHeartbeatInterval = 5;
+const long builtinLedHeartbeatInterval = 50;
+String dTime, dDate;
+DateTime dTimeNow = DateTime();
 
 String iso8601Timestamp = "";
 
@@ -91,7 +92,7 @@ void signal(int repetitions = 2, bool invertColors = false)
         digitalWrite(Config::Pins::Digital::BUZZER, LOW);
         digitalWrite(Config::Pins::Digital::LED, HIGH);  // Turn the LED off by making the voltage HIGH
         delay(Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_DELAY_MS);
-        if (invertColors)
+        if (Config::HardwareFeatures::SSD1306 && invertColors)
             invertDisplayColors();
     }
 }
@@ -260,7 +261,9 @@ void updateSensorData(float sensor_value, float* sensorReadings, int& index, flo
 bool connectManualWifi()
 {
     // Connect to Wi-Fi with static IP.
-    printDisplay("WiFi\nmanual\nconfig", 1000);
+    if (Config::HardwareFeatures::SSD1306)
+        printDisplay("WiFi\nmanual\nconfig", 1000);
+
     WiFi.config(
         Config::Wifi::Manual::LOCAL_IP,
         Config::Wifi::Manual::GATEWAY,
@@ -296,25 +299,30 @@ bool connectAutoWifi()
         Config::Wifi::WIFIMANAGER_CONFIG_PORTAL_TIMEOUT_SECONDS
     );
 
-    printDisplay("WiFi\nauto\nconfig\n", 1000);
-    printDisplay("WiFi\naccess\npoint\nfor " + String(Config::Wifi::WIFIMANAGER_CONFIG_PORTAL_TIMEOUT_SECONDS) + "s", 2500);
-    printDisplay(
-        "NW: " + String(Config::Wifi::SSID)
-        + "\nPW: " + String(Config::Wifi::PASSWORD)
-    );
+    if (Config::HardwareFeatures::SSD1306)
+    {
+        printDisplay("WiFi\nauto\nconfig\n", 1000);
+        printDisplay("WiFi\naccess\npoint\nfor " + String(Config::Wifi::WIFIMANAGER_CONFIG_PORTAL_TIMEOUT_SECONDS) + "s", 2500);
+        printDisplay(
+            "NW: " + String(Config::Wifi::SSID)
+            + "\nPW: " + String(Config::Wifi::PASSWORD)
+        );
+    }
 
     // Config access point.
     bool wifi = wm.autoConnect(Config::Wifi::SSID, Config::Wifi::PASSWORD);
     if (wifi)
     {
         prtn("connected to WiFi");
-        printDisplay("connected to WiFi", 1000);
+        if (Config::HardwareFeatures::SSD1306)
+            printDisplay("connected to WiFi", 1000);
         signal(1);
     }
     else
     {
         prtn("unable to connect to WiFi");
-        printDisplay("unable to connect to WiFi");
+        if (Config::HardwareFeatures::SSD1306)
+            printDisplay("unable to connect to WiFi");
         signal(2);
     }
 
@@ -378,6 +386,14 @@ bool sketchJustUploaded()
     return false;
 }
 
+void setPins()
+{
+    pinMode(Config::Pins::Digital::NOSE, INPUT);
+    pinMode(Config::Pins::Digital::BUZZER, OUTPUT);
+    pinMode(Config::Pins::Digital::LED, OUTPUT);
+    pinMode(Config::Pins::Digital::SELF_TEST, INPUT_PULLUP);
+}
+
 void setup()
 {
     int i;
@@ -387,64 +403,80 @@ void setup()
         Serial.begin(Config::Other::DEBUG_SPEED);
         Serial.flush();
     }
-
-    pinMode(Config::Pins::Digital::NOSE, INPUT);
-    pinMode(Config::Pins::Digital::BUZZER, OUTPUT);
-    pinMode(Config::Pins::Digital::LED, OUTPUT);
-
-    while (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-        prtn(F("SSD1306 allocation failed"));
-        signal(3);
-        delay(2000);
+    setPins();
+    if (Config::HardwareFeatures::SSD1306)
+    {
+        while (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+            prtn(F("SSD1306 allocation failed"));
+            signal(3);
+            delay(2000);
+        }
+        display.setRotation(Config::Display::ROTATION);
     }
-    display.setRotation(Config::Display::ROTATION);
 
-    while (!rtc.begin()) {
-        prtn("RTC error");
-        signal(4);
-        printDisplay("RTC error", 1000, true);
-        delay(2000);
+    if (Config::HardwareFeatures::DS3231)
+    {
+        while (!rtc.begin()) {
+            prtn("RTC error");
+            signal(4);
+            if (Config::HardwareFeatures::SSD1306)
+                printDisplay("RTC error", 1000, true);
+            delay(2000);
+        }
     }
 
     signal(1);
     prt("SW version ");
     prtn(VERSION);
-    printDisplay(String("SW version\n") + String(VERSION), 2000, false);
+    if (Config::HardwareFeatures::SSD1306)
+        printDisplay(String("SW version\n") + String(VERSION), 2000, false);
 
-    if (rtc.lostPower() || sketchJustUploaded()) {
-        // When time needs to be set on a new device, or after a power loss, the
-        // following line sets the RTC to the date & time this sketch was compiled
-        DateTime now = DateTime(F(__DATE__), F(__TIME__));
+    if (Config::HardwareFeatures::DS3231)
+    {
+        if (rtc.lostPower() || sketchJustUploaded()) {
+            // When time needs to be set on a new device, or after a power loss, the
+            // following line sets the RTC to the date & time this sketch was compiled
+            DateTime now = DateTime(F(__DATE__), F(__TIME__));
 
-        // Compensate for local naive to UTC as well.
-        DateTime compensated_datetime = now + Config::DateTime::COMPILATION_SECONDS_OFFSET + Config::DateTime::Tz::COMPUTER_NAIVE_TIME_TO_UTC_SECONDS_OFFSET;
-        rtc.adjust(compensated_datetime);
-        // This line sets the RTC with an explicit date & time, for example to set
-        // January 21, 2014 at 3am you would call:
-        // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+            // Compensate for local naive to UTC as well.
+            DateTime compensated_datetime = now + Config::DateTime::COMPILATION_SECONDS_OFFSET + Config::DateTime::Tz::COMPUTER_NAIVE_TIME_TO_UTC_SECONDS_OFFSET;
+            rtc.adjust(compensated_datetime);
+            // This line sets the RTC with an explicit date & time, for example to set
+            // January 21, 2014 at 3am you would call:
+            // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+        }
     }
 
     if (!Config::Wifi::WORK_OFFLINE)
     {
-        printDisplay("WiFi init", 1000);
+        if (Config::HardwareFeatures::SSD1306)
+            printDisplay("WiFi init", 1000);
         bool wifi = Config::Wifi::MANUAL ? connectManualWifi() : connectAutoWifi();
 
-        if (wifi)
-            printDisplay("SSID: " + WiFi.SSID() + "\n" + "RSSI: " + WiFi.RSSI());
-        else
-            printDisplay("NO WiFi\nskipping...");
+        if (Config::HardwareFeatures::SSD1306)
+        {
+            if (wifi)
+                printDisplay("SSID: " + WiFi.SSID() + "\n" + "RSSI: " + WiFi.RSSI());
+            else
+                printDisplay("NO WiFi\nskipping...");
+        }
     }
 
-    dht.begin();
+    if (Config::HardwareFeatures::DHT11)
+        dht.begin();
 
-    prtn("Warming up MQ-2 sensor");
-
-    // The MQ-2 sensor senses the gas after a few seconds.
-    delay(4000);
+    if (Config::HardwareFeatures::MQ_2)
+    {
+        prtn("Warming up MQ-2 sensor");
+        // The MQ-2 sensor senses the gas after a few seconds.
+        delay(4000);
+    }
 
     /* If still not in temperature and within timeout, continue waiting. */
     for (i = 0;
-         i < Config::Sensor::Setting::MQ_2_WARM_UP_MS / 1000 && digitalRead(Config::Pins::Digital::NOSE) == LOW;
+         Config::HardwareFeatures::MQ_2
+         && i < Config::Sensor::Setting::MQ_2_WARM_UP_MS / 1000
+         && digitalRead(Config::Pins::Digital::NOSE) == LOW;
          i++
     )
     {
@@ -453,45 +485,46 @@ void setup()
         prt(" of ");
         prtn(Config::Sensor::Setting::MQ_2_WARM_UP_MS / 1000);
 
-        clearDisplay(1);
-        display.println("Warming MQ-2 gas");
-        display.println("sensor, please wait");
-        display.print(i);
-        display.print(" of ");
-        display.println(Config::Sensor::Setting::MQ_2_WARM_UP_MS / 1000);
-        display.println("seconds");
-        display.println(easterEgg());
-        display.display();
-        delay(1000);
+        if (Config::HardwareFeatures::SSD1306)
+        {
+            clearDisplay(1);
+            display.println("Warming MQ-2 gas");
+            display.println("sensor, please wait");
+            display.print(i);
+            display.print(" of ");
+            display.println(Config::Sensor::Setting::MQ_2_WARM_UP_MS / 1000);
+            display.println("seconds");
+            display.println(easterEgg());
+            display.display();
+            delay(1000);
+        }
     }
 
     for (i = 0; i < Config::Sensor::Setting::READINGS_BUFFER; i++)
     {
-        clearDisplay();
-        display.println("sample ");
-        display.println(i + 1);
-        display.println("of ");
-        display.println(Config::Sensor::Setting::READINGS_BUFFER);
-        display.display();
+        if (Config::HardwareFeatures::SSD1306)
+        {
+            clearDisplay();
+            display.println("sample ");
+            display.println(i + 1);
+            display.println("of ");
+            display.println(Config::Sensor::Setting::READINGS_BUFFER);
+            display.display();
+        }
 
         prt("sampling ");
         prt(i + 1);
         prt(" of ");
         prtn(Config::Sensor::Setting::READINGS_BUFFER);
 
-        gasSensorReadings[i] = analogRead(Config::Pins::Analog::NOSE);
-        temperatureSensorReadings[i] = (
-            (
-                dht.readTemperature()
-                + Config::Sensor::MeasurmentOffset::TEMPERATURE_CELSIUS_DHT11
-            )
-            + (
-                rtc.getTemperature()
-                + Config::Sensor::MeasurmentOffset::TEMPERATURE_CELSIUS_DS3231
-            )
-        ) / 2;
+        if (Config::HardwareFeatures::MQ_2)
+            gasSensorReadings[i] = analogRead(Config::Pins::Analog::NOSE);
+        else
+            gasSensorReadings[i] = 0;
 
-        humiditySensorReadings[i] = dht.readHumidity() + Config::Sensor::MeasurmentOffset::HUMIDITY_PERCENT;
+        float temperatureCelsiusDs3231, temperatureCelsiusDht11;
+        getTemperatureCelsius(temperatureSensorReadings[i], temperatureCelsiusDs3231, temperatureCelsiusDht11);
+        humiditySensorReadings[i] = Config::HardwareFeatures::DHT11 ? dht.readHumidity() + Config::Sensor::MeasurmentOffset::HUMIDITY_PERCENT : 0.0;
         gasTotal += gasSensorReadings[i];
         temperatureTotal += temperatureSensorReadings[i];
         humidityTotal += humiditySensorReadings[i];
@@ -505,19 +538,27 @@ void setup()
     if (!Config::Wifi::WORK_OFFLINE)
     {
         timeClient.begin();
-        syncRTC();
+        if (Config::HardwareFeatures::DS3231)
+            syncRTC();
     }
 
     // Avoid checking certificate auth.
     httpsClient.setInsecure();
 
-    // This simulates what happens when the gas is detected.
     if (Config::Other::BOOT_GAS_ALARM_SELF_TEST)
-    {
+        selfTest();
+}
+
+void selfTest()
+{
+    // This simulates what happens when the gas is detected.
+    if (Config::HardwareFeatures::SSD1306)
         printDisplay("SELF TEST", 1000, true);
-        raiseGasAlarm();
+    raiseGasAlarm();
+    if (Config::HardwareFeatures::SSD1306)
         printDisplay("TEST END", 1000, true);
-    }
+
+    /* TODO: find a way to self test the DHT11, DS3231, SSD1306. */
 }
 
 void invertDisplayColors()
@@ -567,10 +608,44 @@ String getCurrentDate(DateTime now, const char* format = Config::DateTime::Forma
 void raiseGasAlarm()
 {
     prtn("The gas is present");
-    printDisplay(Config::Other::GAS_ALARM_TEXT, 0, true);
+    if (Config::HardwareFeatures::SSD1306)
+        printDisplay(Config::Other::GAS_ALARM_TEXT, 0, true);
     signal(Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_ITERATIONS, true);
     // Reset display colors.
-    display.invertDisplay(false);
+    if (Config::HardwareFeatures::SSD1306)
+        display.invertDisplay(false);
+}
+
+void getTemperatureCelsius(float &temperatureCelsius, float &temperatureCelsiusDs3231, float &temperatureCelsiusDht11)
+{
+        temperatureCelsiusDs3231 = Config::HardwareFeatures::DS3231 ? rtc.getTemperature() + Config::Sensor::MeasurmentOffset::TEMPERATURE_CELSIUS_DS3231: 0.0;
+        temperatureCelsiusDht11 = Config::HardwareFeatures::DHT11 ? dht.readTemperature() + Config::Sensor::MeasurmentOffset::TEMPERATURE_CELSIUS_DHT11 : 0.0;
+        if (Config::HardwareFeatures::DS3231 && Config::HardwareFeatures::DHT11)
+            temperatureCelsius = (temperatureCelsiusDs3231 + temperatureCelsiusDht11) / 2;
+        else if (!Config::HardwareFeatures::DS3231 && Config::HardwareFeatures::DHT11)
+            temperatureCelsius = temperatureCelsiusDht11;
+        else if (Config::HardwareFeatures::DS3231 && !Config::HardwareFeatures::DHT11)
+            temperatureCelsius = temperatureCelsiusDs3231;
+}
+
+void displayTemperatureCelsius(float averageTemperatureReading, char temperatureRelativeTendency)
+{
+    display.print(averageTemperatureReading, 2);
+    display.print(" ");
+    display.print((char)247);
+    display.print("C ");
+    display.println(temperatureRelativeTendency);
+}
+
+void triggerFunctionWhileGrounded(int pin, void (*operation)())
+{
+    /* `operation` is a function pointer. */
+    // Debounce.
+    delay(50);
+    
+    // Optional: Wait for wire to be released before continuing
+    while(digitalRead(Config::Pins::Digital::SELF_TEST) == LOW)
+        operation();
 }
 
 void loop()
@@ -579,51 +654,65 @@ void loop()
     char dummy2 = 0;
     unsigned long currentMillis = millis();
 
-    uptime::calculateUptime();
-
-    // Read the time from the RTC.
-    DateTime dTimeNow = rtc.now();
-
-    // Set the board time.
-    setTime(dTimeNow.unixtime());
-
-    TimeChangeRule *tcr;
-    // current time from the Time Library.
-    time_t utc = now();
-    // Transform the board time to localtime.
-    time_t localTime = localTZ.toLocal(utc, &tcr);
-
-    String dTime = getCurrentTime(localTime);
-    String dDate = getCurrentDate(localTime);
-
-    if (!gasDetected)
+    // Use non-blocking code.
+    if (Config::HardwareFeatures::DS3231
+        && currentMillis - previousMillisTimestampUpdate >= Config::Rtc::RTC_UPDATE_TIMEOUT_MS)
     {
+        previousMillisTimestampUpdate = currentMillis;
+
+        // Read the time from the RTC.
+        dTimeNow = rtc.now();
+
+        // Set the board time.
+        setTime(dTimeNow.unixtime());
+
+        TimeChangeRule *tcr;
+        // current time from the Time Library.
+        time_t utc = now();
+        // Transform the board time to localtime.
+        time_t localTime = localTZ.toLocal(utc, &tcr);
+
+        dTime = getCurrentTime(localTime);
+        dDate = getCurrentDate(localTime);
+    }
+
+    if (currentMillis - previousMillisDisplayData >= Config::Display::DISPLAY_TIMEOUT_MS && !gasDetected)
+    {
+        previousMillisDisplayData = currentMillis;
+
         // Avoid displaying data if an alarm can still be raised sequentially.
-        clearDisplay();
-        display.println(dTime);
-        display.println(dDate);
-        display.print(averageTemperatureReading, 2);
-        display.print(" ");
-        display.print((char)247);
-        display.print("C ");
-        display.println(temperatureRelativeTendency);
-        display.print(averageHumidityReading, 2);
-        display.print(" %H ");
-        display.println(humidityRelativeTendency);
-        display.display();
+        if (Config::HardwareFeatures::SSD1306)
+        {
+            clearDisplay();
+            if (Config::HardwareFeatures::DS3231)
+            {
+                display.println(dTime);
+                display.println(dDate);
+                displayTemperatureCelsius(averageTemperatureReading, temperatureRelativeTendency);
+            }
+            if (Config::HardwareFeatures::DHT11)
+            {
+                if (!Config::HardwareFeatures::DS3231)
+                    displayTemperatureCelsius(averageTemperatureReading, temperatureRelativeTendency);
+                display.print(averageHumidityReading, 2);
+                display.print(" %H ");
+                display.println(humidityRelativeTendency);
+            }
+            if (Config::HardwareFeatures::DS3231 || Config::HardwareFeatures::DHT11)
+                display.display();
+        }
     }
     
-    // Use non-blocking code.
     if (currentMillis - previousMillis >= Config::Sensor::Setting::READING_TIMEOUT_MS)
     {
         previousMillis = currentMillis;
 
-        gasState = digitalRead(Config::Pins::Digital::NOSE);
-        float gasConcentration = (float) analogRead(Config::Pins::Analog::NOSE) + Config::Sensor::MeasurmentOffset::GAS_VOLTS;
-        float temperatureCelsiusDht11 = dht.readTemperature() + Config::Sensor::MeasurmentOffset::TEMPERATURE_CELSIUS_DHT11;
-        float temperatureCelsiusDs3231 = rtc.getTemperature() + Config::Sensor::MeasurmentOffset::TEMPERATURE_CELSIUS_DS3231;
-        float temperatureCelsius = (temperatureCelsiusDht11 + temperatureCelsiusDs3231) / 2;
-        float humidityPercent = dht.readHumidity() + Config::Sensor::MeasurmentOffset::HUMIDITY_PERCENT;
+        gasState = Config::HardwareFeatures::MQ_2 ? digitalRead(Config::Pins::Digital::NOSE) : HIGH;
+        float gasConcentration = Config::HardwareFeatures::MQ_2 ? (float) analogRead(Config::Pins::Analog::NOSE) + Config::Sensor::MeasurmentOffset::GAS_VOLTS : 0.0;
+        float temperatureCelsius, temperatureCelsiusDs3231, temperatureCelsiusDht11;
+        getTemperatureCelsius(temperatureCelsius, temperatureCelsiusDs3231, temperatureCelsiusDht11);
+
+        float humidityPercent = Config::HardwareFeatures::DHT11 ? dht.readHumidity() + Config::Sensor::MeasurmentOffset::HUMIDITY_PERCENT: 0.0;
 
         // Check if the DHT11 or DS3231 sensor have problems.
         if (isnan(temperatureCelsius) || isnan(humidityPercent))
@@ -647,7 +736,7 @@ void loop()
         averageGasReadingVolts = (averageGasReading / 1023) * 5;
         sprintf(averageGasReadingNormalizedChar, "%.6f", averageGasReadingVolts);
 
-        iso8601Timestamp = epochToIso8601(dTimeNow.unixtime());
+        iso8601Timestamp = Config::HardwareFeatures::DS3231 ? epochToIso8601(dTimeNow.unixtime()) : "";
 
         prt("MQ2 sensor avg V: ");
         prtn(averageGasReadingVolts);
@@ -683,10 +772,12 @@ void loop()
 
     if (currentMillis - previousMillisNetworkCheck >= Config::Network::SEND_DATA_FREQUENCY_MS)
     {
-        if (Config::Display::PERIODIC_COLOR_INVERT)
+        previousMillisNetworkCheck = currentMillis;
+
+        if (Config::HardwareFeatures::SSD1306 && Config::Display::PERIODIC_COLOR_INVERT)
             invertDisplayColors();
 
-        if (PRINT_DEBUG)
+        if (Config::HardwareFeatures::SSD1306 && PRINT_DEBUG)
         {
             switch (printDebugCounter)
             {
@@ -706,6 +797,7 @@ void loop()
                     printDebugCounter += 1;
                     break;
                 case 3:
+                    uptime::calculateUptime();
                     printDisplay(String(uptime::getDays())+ String("d") + String(uptime::getHours()) + String("h up"), 1000, true);
                     printDebugCounter += 1;
                     break;
@@ -714,6 +806,12 @@ void loop()
                     printDebugCounter += 1;
                     break;
                 case 5:
+                    printDisplay("SELF-TEST", 333, true);
+                    printDisplay("WITH GPIO", 333, true);
+                    printDisplay(String(Config::Pins::Digital::SELF_TEST) + String(" + GND"), 333, true);
+                    printDebugCounter += 1;
+                    break;
+                case 6:
                     if (Config::Wifi::WORK_OFFLINE)
                         printDisplay("OFFLN MODE", 1000, true);
                     else
@@ -729,13 +827,12 @@ void loop()
             }
         }
 
-        previousMillisNetworkCheck = currentMillis;
-
         // Avoid busy waiting if not connected.
         if (WiFi.status() == WL_CONNECTED)
         {
             // Update the time.
-            syncRTC();
+            if (Config::HardwareFeatures::DS3231)
+                syncRTC();
 
             if (Config::Network::SEND_TO_API)
             {
@@ -789,14 +886,16 @@ void loop()
          */
         wm.setConfigPortalTimeout(0);
         prtn("WiFi is disconnected");
-        printDisplay("NO WiFi\nretrying...");
+        if (Config::HardwareFeatures::SSD1306)
+            printDisplay("NO WiFi\nretrying...");
         WiFi.reconnect();
-        clearDisplay();
+        if (Config::HardwareFeatures::SSD1306)
+            clearDisplay();
         checkWifi = 1;
     }
 
     if (Config::Other::ENABLE_LED_HEARTBEAT
-        && currentMillis - previousMillisBuiltinLedHeartbeat >= builtinLedHeartbeatInterval)
+        && currentMillis - previousMillisBuiltinLedHeartbeat >= Config::Other::BUILTIN_LED_HEARTBEAT_INTERVAL)
     {
         previousMillisBuiltinLedHeartbeat = currentMillis;
         analogWrite(Config::Pins::Digital::LED, builtinLedBrightness);
@@ -806,4 +905,6 @@ void loop()
         if (builtinLedBrightness <= 0 || builtinLedBrightness >= Config::Other::BUILTIN_LED_MAX_PWM_VALUE)
             builtinLedFadeAmount = -builtinLedFadeAmount;
     }
+
+    triggerFunctionWhileGrounded(Config::Pins::Digital::SELF_TEST, selfTest);
 }

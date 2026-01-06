@@ -24,7 +24,12 @@
  */
 #include "config.h"
 
-/* IMPORTANT VARIABLES */
+/* Hardware features. Set to false to use on minimal boards. */
+const bool Config::HardwareFeatures::DS3231 = true;
+const bool Config::HardwareFeatures::SSD1306 = true;
+const bool Config::HardwareFeatures::DHT11 = true;
+const bool Config::HardwareFeatures::MQ_2 = true;
+
 /* Display rotation 
  *     0 = 0°
  *     1 = 90°
@@ -56,13 +61,13 @@ const char* Config::DateTime::Format::TIME = "%H:%M:%S";
 const char* Config::DateTime::Format::DATE = "%Y-%m-%d";
 
 // Time in ms between readings.
-const unsigned long Config::Sensor::Setting::READING_TIMEOUT_MS = 10000;
+const unsigned int Config::Sensor::Setting::READING_TIMEOUT_MS = 10000;
 
 // Time in ms to assume the MQ-2 sensor is properly warmed up.
 const int Config::Sensor::Setting::MQ_2_WARM_UP_MS = 60000;
 
 // Time in ms between readings during the initial boot phase.
-const unsigned long Config::Sensor::Setting::BOOT_READING_TIMEOUT_MS = 1200;
+const unsigned int Config::Sensor::Setting::BOOT_READING_TIMEOUT_MS = 1200;
 
 // Ser to true if you want to use the built-in LED to show the board is working.
 const bool Config::Other::ENABLE_LED_HEARTBEAT = true;

@@ -31,6 +31,12 @@
 #include "version.h"
 
 struct Config {
+    struct HardwareFeatures {
+        static const bool DS3231;
+        static const bool SSD1306;
+        static const bool DHT11;
+        static const bool MQ_2;
+    };
     struct Network {
         static const bool SEND_TO_API;
         static const char* HOST;
@@ -48,7 +54,7 @@ struct Config {
 
         // true to setup WiFi manually without the wizard.
         static const bool MANUAL = false;
-        static const unsigned long WIFIMANAGER_CONFIG_PORTAL_TIMEOUT_SECONDS = 180;
+        static const unsigned int WIFIMANAGER_CONFIG_PORTAL_TIMEOUT_SECONDS = 180;
 
         // In auto mode, these are the config access point credentials.
         static const char* SSID;
@@ -75,14 +81,19 @@ struct Config {
         static const int WIDTH = 128;
         static const int HEIGHT = 64;
         static const bool PERIODIC_COLOR_INVERT = false;
+        static const unsigned int DISPLAY_TIMEOUT_MS = 500;
+    };
+
+    struct Rtc {
+        static const int unsigned RTC_UPDATE_TIMEOUT_MS = 500;
     };
 
     struct Sensor {
         struct Setting {
-            static const unsigned long READING_TIMEOUT_MS;
+            static const unsigned int READING_TIMEOUT_MS;
 
             // Timeout during the initial boot phase.
-            static const unsigned long BOOT_READING_TIMEOUT_MS;
+            static const unsigned int BOOT_READING_TIMEOUT_MS;
 
             // Total number of readings in memory (circular array).
             static constexpr int READINGS_BUFFER = 8;
@@ -106,11 +117,12 @@ struct Config {
 
     struct Pins {
         struct Digital {
-            static const int BUZZER = 0;
-            static const int BOARD_LED = 2;
-            static const int DHT_11 = 12;
-            static const int NOSE = 14;
-            static const int LED = LED_BUILTIN;
+            /* + is D*, - is GND on the ESP8266 D1 mini. */
+            static const int BUZZER = 0;            // GPIO  0: D3
+            static const int DHT_11 = 12;           // GPIO 12: D6
+            static const int NOSE = 14;             // GPIO 14: D5
+            static const int SELF_TEST = 13;        // GPIO 13: D7
+            static const int LED = LED_BUILTIN;     // GPIO 2:  D4
         };
         struct Analog {
             static const int RTC = 999;
@@ -160,6 +172,7 @@ struct Config {
 
         static const int BUILTIN_LED_MAX_PWM_VALUE = 255;
         static const bool ENABLE_LED_HEARTBEAT;
+        static const int BUILTIN_LED_HEARTBEAT_INTERVAL = 50;
     };
 };
 
