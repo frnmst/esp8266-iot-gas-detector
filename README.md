@@ -22,6 +22,22 @@ Arduino IDE:
 
 ## Board
 
+### Special pin triggers
+
+| Positive lead pin name | Positive lead GPIO id | Ground pin name | Function name |
+|------------------------|-----------------------|-----------------|---------------|
+| D7 | 13 | GND | `selfTest()` |
+
+### Power usage
+
+| Components | mA   |
+|------------|-----:|
+| All        | 165  |
+| DS3231     | 7    |
+| DHT11      | 2    |
+| SSD1306    | 5    |
+| MQ-2       | 133  |
+
 ### IDE Setup
 
 This project uses an ESP8266 board. Follow [these](https://arduino-esp8266.readthedocs.io/en/latest/installing.html) instructions to set it up.
