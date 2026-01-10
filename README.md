@@ -24,6 +24,8 @@ Arduino IDE:
 
 ### Special pin triggers
 
+Connect the two pins with a wire to trigger the function.
+
 | Positive lead pin name | Positive lead GPIO id | Ground pin name | Function name |
 |------------------------|-----------------------|-----------------|---------------|
 | D7 | 13 | GND | `selfTest()` |
