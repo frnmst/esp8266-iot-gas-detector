@@ -25,9 +25,9 @@
 #include "config.h"
 
 /* Hardware features. Set to false to use on minimal boards. */
-const bool Config::HardwareFeatures::DS3231 = false;
-const bool Config::HardwareFeatures::SSD1306 = false;
-const bool Config::HardwareFeatures::DHT11 = false;
+const bool Config::HardwareFeatures::DS3231 = true;
+const bool Config::HardwareFeatures::SSD1306 = true;
+const bool Config::HardwareFeatures::DHT11 = true;
 const bool Config::HardwareFeatures::MQ_2 = true;
 
 /* Display rotation 
@@ -62,6 +62,8 @@ const char* Config::DateTime::Format::DATE = "%Y-%m-%d";
 
 // Time in ms between readings.
 const unsigned int Config::Sensor::Setting::READING_TIMEOUT_MS = 10000;
+
+const unsigned int Config::Display::DISPLAY_DEBUG_DATA_FREQUENCY_MS = 60000;
 
 // Time in ms to assume the MQ-2 sensor is properly warmed up.
 const int Config::Sensor::Setting::MQ_2_WARM_UP_MS = 60000;

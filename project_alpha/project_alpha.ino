@@ -60,7 +60,7 @@ static int gasIndex = 0, temperatureIndex = 0, humidityIndex = 0;
 int gasState, gasTendency = 0;
 char temperatureRelativeTendency = 0, humidityRelativeTendency = 0;
 bool inverted = false, gasDetected = false;
-unsigned long previousMillis = 0, previousMillisNetworkCheck = 0, previousMillisBuiltinLedHeartbeat = 0, previousMillisTimestampUpdate = 0, previousMillisDisplayData = 0;
+unsigned long previousMillis = 0, previousMillisNetworkCheck = 0, previousMillisBuiltinLedHeartbeat = 0, previousMillisTimestampUpdate = 0, previousMillisDisplayData = 0, previousMillisDisplayDebugData = 0;
 WiFiClientSecure httpsClient;
 // Create a UDP instance.
 WiFiUDP udp;
@@ -397,6 +397,7 @@ void setPins()
 void setup()
 {
     int i;
+    bool ok, done = false;
 
     if (PRINT_DEBUG)
     {
@@ -404,30 +405,23 @@ void setup()
         Serial.flush();
     }
     setPins();
-    if (Config::HardwareFeatures::SSD1306)
+
+    while (!done)
     {
-        while (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-            prtn(F("SSD1306 allocation failed"));
-            signal(3);
-            delay(2000);
-        }
-        display.setRotation(Config::Display::ROTATION);
+        ok = true;
+        if (Config::HardwareFeatures::SSD1306)
+            ok = ok & ssd1306Init();
+        if (Config::HardwareFeatures::DHT11)
+            ok = ok & dht11Init();
+        if (Config::HardwareFeatures::DS3231)
+            ok = ok & ds3231Init();
+        ok = ok & activeBuzzerInit();
+        ok = ok & builtintLedInit();
+
+        if (ok)
+            done = true;
     }
 
-    if (Config::HardwareFeatures::DS3231)
-    {
-        while (!rtc.begin()) {
-            prtn("RTC error");
-            signal(4);
-            if (Config::HardwareFeatures::SSD1306)
-                printDisplay("RTC error", 1000, true);
-            delay(2000);
-        }
-    }
-
-    signal(1);
-    prt("SW version ");
-    prtn(VERSION);
     if (Config::HardwareFeatures::SSD1306)
         printDisplay(String("SW version\n") + String(VERSION), 2000, false);
 
@@ -461,9 +455,6 @@ void setup()
                 printDisplay("NO WiFi\nskipping...");
         }
     }
-
-    if (Config::HardwareFeatures::DHT11)
-        dht.begin();
 
     if (Config::HardwareFeatures::MQ_2)
     {
@@ -544,21 +535,149 @@ void setup()
 
     // Avoid checking certificate auth.
     httpsClient.setInsecure();
-
-    if (Config::Other::BOOT_GAS_ALARM_SELF_TEST)
-        selfTest();
 }
 
-void selfTest()
+bool dht11Init()
 {
-    // This simulates what happens when the gas is detected.
+    dht.begin();
+    return dht11SelfTest();
+}
+
+bool ds3231Init()
+{
+    if (!rtc.begin())
+    {
+        prtn("RTC error");
+        signal(4);
+        if (Config::HardwareFeatures::SSD1306)
+            printDisplay("DS3231 KO", 1000, true);
+        delay(2000);
+        return false;
+    }
+    else
+    {
+        if (Config::HardwareFeatures::SSD1306)
+            printDisplay("DS3231 OK", 1000, true);
+        return true;
+    }
+}
+
+bool ssd1306Init()
+{
+    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
+    {
+        prtn("SSD1306 allocation failed");
+        signal(3);
+        delay(2000);
+        return false;
+    }
+    else
+    {
+        display.setRotation(Config::Display::ROTATION);
+        return ssd1306SelfTest();
+    }
+}
+
+bool activeBuzzerInit()
+{
+    digitalWrite(Config::Pins::Digital::BUZZER, HIGH);
+    delay(100);
+    digitalWrite(Config::Pins::Digital::BUZZER, LOW);
+    printDisplay("BUZZER OK", 1000, true);
+    return true;
+}
+
+bool builtintLedInit()
+{
+    digitalWrite(Config::Pins::Digital::LED, HIGH);
+    digitalWrite(Config::Pins::Digital::LED, LOW);
+    delay(100);
+    digitalWrite(Config::Pins::Digital::LED, HIGH);
+    printDisplay("LED OK", 1000, true);
+    return true;
+}
+
+bool ds3231SelfTest()
+{
+    Wire.beginTransmission(0x68);
+    if (Wire.endTransmission() == 0)
+    {
+        if (Config::HardwareFeatures::SSD1306)
+            printDisplay("DS3231 OK", 1000, true);
+        prtn("DS3231 OK");
+        return true;
+    }
+    else
+    {
+        prtn("DS3231 KO");
+        signal(4);
+        return false;
+    }   
+}
+
+bool dht11SelfTest()
+{
+    if (isnan(dht.readHumidity()))
+    {
+        if (Config::HardwareFeatures::SSD1306)
+            printDisplay("DHT11 KO", 1000, true);
+        signal(2);
+        return false;
+    }
+    else
+    {
+        if (Config::HardwareFeatures::SSD1306)
+            printDisplay("DHT11 OK", 1000, true);
+        return true;
+    }
+}
+
+bool ssd1306SelfTest()
+{
+    Wire.beginTransmission(0x3C);
+    if (Wire.endTransmission() == 0)
+    {
+        printDisplay("SSD1306 OK", 1000, true);
+        prtn("SSD1306 OK");
+        return true;
+    }
+    else
+    {
+        prtn("SSD1306 KO");
+        signal(3);
+        return false;
+    }
+}
+
+bool activeBuzzerSelfTest()
+{
+    return activeBuzzerInit();
+}
+
+bool builtinLedSelfTest()
+{
+    return builtintLedInit();
+}
+
+bool selfTest()
+{
+    bool ok = true;
     if (Config::HardwareFeatures::SSD1306)
-        printDisplay("SELF TEST", 1000, true);
-    raiseGasAlarm();
+        printDisplay("HW TEST", 1000, true);
+
+    if (Config::HardwareFeatures::SSD1306)
+        ok = ok & ssd1306SelfTest();
+    if (Config::HardwareFeatures::DHT11)
+        ok = ok & dht11SelfTest();
+    if (Config::HardwareFeatures::DS3231)
+        ok = ok & ds3231SelfTest();
+    ok = ok & activeBuzzerSelfTest();
+    ok = ok & builtinLedSelfTest();
+
     if (Config::HardwareFeatures::SSD1306)
         printDisplay("TEST END", 1000, true);
 
-    /* TODO: find a way to self test the DHT11, DS3231, SSD1306. */
+    return ok;
 }
 
 void invertDisplayColors()
@@ -637,13 +756,13 @@ void displayTemperatureCelsius(float averageTemperatureReading, char temperature
     display.println(temperatureRelativeTendency);
 }
 
-void triggerFunctionWhileGrounded(int pin, void (*operation)())
+void triggerFunctionWhileGrounded(int pin, bool (*operation)())
 {
     /* `operation` is a function pointer. */
     // Debounce.
     delay(50);
     
-    // Optional: Wait for wire to be released before continuing
+    // Optional: wait for wire to be released before continuing.
     while(digitalRead(Config::Pins::Digital::SELF_TEST) == LOW)
         operation();
 }
@@ -707,6 +826,9 @@ void loop()
     {
         previousMillis = currentMillis;
 
+        if (Config::HardwareFeatures::SSD1306 && Config::Display::PERIODIC_COLOR_INVERT)
+            invertDisplayColors();
+
         gasState = Config::HardwareFeatures::MQ_2 ? digitalRead(Config::Pins::Digital::NOSE) : HIGH;
         float gasConcentration = Config::HardwareFeatures::MQ_2 ? (float) analogRead(Config::Pins::Analog::NOSE) + Config::Sensor::MeasurmentOffset::GAS_VOLTS : 0.0;
         float temperatureCelsius, temperatureCelsiusDs3231, temperatureCelsiusDht11;
@@ -722,7 +844,6 @@ void loop()
             prtn("Warning DHT11 or DS3231 is NaN");
             temperatureCelsius = temperatureSensorReadings[temperatureIndex];
             humidityPercent = humiditySensorReadings[humidityIndex];
-            signal(Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_ITERATIONS);
         }
 
         updateSensorData(gasConcentration, gasSensorReadings, gasIndex, gasTotal, gasTendency, dummy2);
@@ -770,62 +891,61 @@ void loop()
         }
     }
 
+    if (PRINT_DEBUG && Config::HardwareFeatures::SSD1306 && currentMillis - previousMillisDisplayDebugData >= Config::Display::DISPLAY_DEBUG_DATA_FREQUENCY_MS)
+    {
+        previousMillisDisplayDebugData = currentMillis;
+
+        switch (printDebugCounter)
+        {
+            case 0:
+                printDisplay("SERIAL DBG", 1000, true);
+                if (Config::Other::DISPLAY_EXTRA_DEBUG_INFO)
+                    printDebugCounter += 1;
+                break;
+            case 1:
+                printDisplay(String(Config::Other::DEBUG_SPEED) + String(" Bd"), 1000, true);
+                printDebugCounter += 1;
+                break;
+            case 2:
+                char averageGasReadingNormalizedCharTmp[8];
+                sprintf(averageGasReadingNormalizedCharTmp, "%.2f", averageGasReadingVolts);
+                printDisplay(String(averageGasReadingNormalizedCharTmp) + String(" gas"), 1000, true);
+                printDebugCounter += 1;
+                break;
+            case 3:
+                uptime::calculateUptime();
+                printDisplay(String(uptime::getDays())+ String("d") + String(uptime::getHours()) + String("h up"), 1000, true);
+                printDebugCounter += 1;
+                break;
+            case 4:
+                printDisplay(String("SV ") + String(VERSION), 1000, true);
+                printDebugCounter += 1;
+                break;
+            case 5:
+                printDisplay("SELF-TEST", 333, true);
+                printDisplay("WITH GPIO", 333, true);
+                printDisplay(String(Config::Pins::Digital::SELF_TEST) + String(" + GND"), 333, true);
+                printDebugCounter += 1;
+                break;
+            case 6:
+                if (Config::Wifi::WORK_OFFLINE)
+                    printDisplay("OFFLN MODE", 1000, true);
+                else
+                    printDisplay("ONLIN MODE", 1000, true);
+
+                // Rotate debug prints.
+                printDebugCounter = 0;
+                break;
+            default:
+                // Rotate debug prints.
+                printDebugCounter = 0;
+                break;
+        }
+    }
+
     if (currentMillis - previousMillisNetworkCheck >= Config::Network::SEND_DATA_FREQUENCY_MS)
     {
         previousMillisNetworkCheck = currentMillis;
-
-        if (Config::HardwareFeatures::SSD1306 && Config::Display::PERIODIC_COLOR_INVERT)
-            invertDisplayColors();
-
-        if (Config::HardwareFeatures::SSD1306 && PRINT_DEBUG)
-        {
-            switch (printDebugCounter)
-            {
-                case 0:
-                    printDisplay("SERIAL DBG", 1000, true);
-                    if (Config::Other::DISPLAY_EXTRA_DEBUG_INFO)
-                        printDebugCounter += 1;
-                    break;
-                case 1:
-                    printDisplay(String(Config::Other::DEBUG_SPEED) + String(" Bd"), 1000, true);
-                    printDebugCounter += 1;
-                    break;
-                case 2:
-                    char averageGasReadingNormalizedCharTmp[8];
-                    sprintf(averageGasReadingNormalizedCharTmp, "%.2f", averageGasReadingVolts);
-                    printDisplay(String(averageGasReadingNormalizedCharTmp) + String(" gas"), 1000, true);
-                    printDebugCounter += 1;
-                    break;
-                case 3:
-                    uptime::calculateUptime();
-                    printDisplay(String(uptime::getDays())+ String("d") + String(uptime::getHours()) + String("h up"), 1000, true);
-                    printDebugCounter += 1;
-                    break;
-                case 4:
-                    printDisplay(String("SV ") + String(VERSION), 1000, true);
-                    printDebugCounter += 1;
-                    break;
-                case 5:
-                    printDisplay("SELF-TEST", 333, true);
-                    printDisplay("WITH GPIO", 333, true);
-                    printDisplay(String(Config::Pins::Digital::SELF_TEST) + String(" + GND"), 333, true);
-                    printDebugCounter += 1;
-                    break;
-                case 6:
-                    if (Config::Wifi::WORK_OFFLINE)
-                        printDisplay("OFFLN MODE", 1000, true);
-                    else
-                        printDisplay("ONLIN MODE", 1000, true);
-
-                    // Rotate debug prints.
-                    printDebugCounter = 0;
-                    break;
-                default:
-                    // Rotate debug prints.
-                    printDebugCounter = 0;
-                    break;
-            }
-        }
 
         // Avoid busy waiting if not connected.
         if (WiFi.status() == WL_CONNECTED)

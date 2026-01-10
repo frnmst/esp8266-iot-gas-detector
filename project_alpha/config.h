@@ -82,6 +82,7 @@ struct Config {
         static const int HEIGHT = 64;
         static const bool PERIODIC_COLOR_INVERT = false;
         static const unsigned int DISPLAY_TIMEOUT_MS = 500;
+        static const unsigned int DISPLAY_DEBUG_DATA_FREQUENCY_MS;
     };
 
     struct Rtc {
@@ -162,7 +163,6 @@ struct Config {
     };
 
     struct Other {
-        static const bool BOOT_GAS_ALARM_SELF_TEST = false;
         static const char* GAS_ALARM_TEXT;
 
         // Display extra debug only if main debug is enabled.
