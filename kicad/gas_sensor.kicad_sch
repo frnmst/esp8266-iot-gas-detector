@@ -6,11 +6,12 @@
 	(paper "A4")
 	(title_block
 		(title "ESP8266 gas detector alarm")
-		(date "2025-06-22")
+		(date "2026-01-11")
 		(rev "1")
 		(comment 1 "Franco Masotti")
 		(comment 2 "esp8266-iot-gas-detector")
-		(comment 3 "0.4.0")
+		(comment 3 "0.10.0")
+		(comment 4 "Pins referenced are NOT GPIOs but printed pins")
 	)
 	(lib_symbols
 		(symbol "Gas_sensor_personal:MQ-2"
@@ -993,6 +994,156 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "Switch:SW_Push"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 1.016)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "SW"
+				(at 1.27 2.54 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Value" "SW_Push"
+				(at 0 -1.524 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 5.08 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 5.08 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Push button switch, generic, two pins"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "switch normally-open pushbutton push-button"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "SW_Push_0_1"
+				(circle
+					(center -2.032 0)
+					(radius 0.508)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 1.27) (xy 0 3.048)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(circle
+					(center 2.032 0)
+					(radius 0.508)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 2.54 1.27) (xy -2.54 1.27)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(pin passive line
+					(at -5.08 0 0)
+					(length 2.54)
+					(name "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 5.08 0 180)
+					(length 2.54)
+					(name "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "Timer_RTC:DS3231M"
 			(exclude_from_sim no)
 			(in_bom yes)
@@ -1399,6 +1550,12 @@
 		(uuid "857854f6-f9fa-4f2a-bda1-c905f5e138d9")
 	)
 	(junction
+		(at 165.1 71.12)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "a633b550-95de-4179-a856-86b94cf7ba9e")
+	)
+	(junction
 		(at 173.99 81.28)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -1548,17 +1705,6 @@
 	)
 	(wire
 		(pts
-			(xy 228.6 71.12) (xy 149.86 71.12)
-		)
-		(stroke
-			(width 0)
-			(type default)
-			(color 0 0 0 1)
-		)
-		(uuid "3cc3a21b-da3e-4ad9-9c2d-beb0153eaecb")
-	)
-	(wire
-		(pts
 			(xy 165.1 110.49) (xy 165.1 119.38)
 		)
 		(stroke
@@ -1602,6 +1748,17 @@
 	)
 	(wire
 		(pts
+			(xy 165.1 71.12) (xy 149.86 71.12)
+		)
+		(stroke
+			(width 0)
+			(type default)
+			(color 0 0 0 1)
+		)
+		(uuid "5adffddb-bbf8-4f5b-a8b7-4b0cdb9a30ed")
+	)
+	(wire
+		(pts
 			(xy 149.86 71.12) (xy 149.86 119.38)
 		)
 		(stroke
@@ -1632,6 +1789,27 @@
 			(color 255 0 0 1)
 		)
 		(uuid "69a1ee29-0b75-4571-8799-337b99cf7404")
+	)
+	(wire
+		(pts
+			(xy 154.94 96.52) (xy 154.94 53.34)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "70efd4ff-f9ab-4e15-91b8-369ec56bf976")
+	)
+	(wire
+		(pts
+			(xy 165.1 53.34) (xy 165.1 71.12)
+		)
+		(stroke
+			(width 0)
+			(type default)
+			(color 0 0 0 1)
+		)
+		(uuid "7231a4c7-cc78-441f-ba25-fdd0fdbb9490")
 	)
 	(wire
 		(pts
@@ -1686,6 +1864,16 @@
 			(color 0 0 0 1)
 		)
 		(uuid "93d2a85a-8fbe-40a7-b70d-4e17f5fe6eff")
+	)
+	(wire
+		(pts
+			(xy 144.78 96.52) (xy 154.94 96.52)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "949f311d-8f26-450b-94ed-2c047205e314")
 	)
 	(wire
 		(pts
@@ -1837,6 +2025,17 @@
 			(color 0 237 255 1)
 		)
 		(uuid "cf905cef-c246-4df3-9050-6cb5b2c937c9")
+	)
+	(wire
+		(pts
+			(xy 165.1 71.12) (xy 228.6 71.12)
+		)
+		(stroke
+			(width 0)
+			(type default)
+			(color 0 0 0 1)
+		)
+		(uuid "d9ce8c41-1e22-47b3-b62c-2cb948f2a6d7")
 	)
 	(wire
 		(pts
@@ -2169,6 +2368,82 @@
 			(project ""
 				(path "/74195df6-15d5-47d4-9be6-1fd474b469e5"
 					(reference "U3")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Switch:SW_Push")
+		(at 160.02 53.34 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "9a8132e0-e739-442a-b76e-d5e1357e572e")
+		(property "Reference" "SW1"
+			(at 160.02 45.72 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SW_Push"
+			(at 160.02 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 160.02 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 160.02 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Push button switch, generic, two pins"
+			(at 160.02 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Function" "Self test"
+			(at 160.02 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right bottom)
+			)
+		)
+		(pin "1"
+			(uuid "bdb323f5-2cec-421d-a397-83588dbd909e")
+		)
+		(pin "2"
+			(uuid "2d33bf3a-dada-4c8d-858c-5ab340f7eafd")
+		)
+		(instances
+			(project ""
+				(path "/74195df6-15d5-47d4-9be6-1fd474b469e5"
+					(reference "SW1")
 					(unit 1)
 				)
 			)
