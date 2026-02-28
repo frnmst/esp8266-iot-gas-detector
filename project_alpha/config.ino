@@ -1,4 +1,4 @@
-/* version 0.10.0
+/* version 0.11.0
  *
  * MIT License
  *
@@ -24,11 +24,12 @@
  */
 #include "config.h"
 
-/* Hardware features. Set to false to use on minimal boards. */
+/* Hardware features. Set to false to use on different hardware revisions. */
 const bool Config::HardwareFeatures::DS3231 = true;
 const bool Config::HardwareFeatures::SSD1306 = true;
 const bool Config::HardwareFeatures::DHT11 = true;
 const bool Config::HardwareFeatures::MQ_2 = true;
+const bool Config::HardwareFeatures::MQ_7 = false;
 
 /* Display rotation 
  *     0 = 0°

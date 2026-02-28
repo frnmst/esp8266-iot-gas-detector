@@ -1,4 +1,4 @@
-/* version 0.10.0
+/* version 0.11.0
  *
  * MIT License
  *
@@ -22,13 +22,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+
+#include <Arduino.h>
+#include <DHT.h>
 #include <Adafruit_SSD1306.h>
 #include <EEPROM.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
-#include <DHT.h>
-#include <Arduino.h>
-#include <ESP8266WiFi.h>
+#if defined(ESP8266)
+    #include <ESP8266WiFi.h>
+#elif defined(ESP32)
+    #include <WiFi.h>
+#else
+    #error "unsupported arch!"
+#endif
 #include <ArduinoJson.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
@@ -41,6 +48,7 @@
 
 #include "config.h"
 #include "version.h"
+
 
 // Devices.
 RTC_DS3231 rtc;
@@ -399,13 +407,16 @@ void setup()
     int i;
     bool ok, done = false;
 
+
+
     if (PRINT_DEBUG)
     {
         Serial.begin(Config::Other::DEBUG_SPEED);
         Serial.flush();
+
     }
     setPins();
-
+    
     while (!done)
     {
         ok = true;
@@ -537,6 +548,7 @@ void setup()
     httpsClient.setInsecure();
 }
 
+
 bool dht11Init()
 {
     dht.begin();
@@ -583,7 +595,8 @@ bool activeBuzzerInit()
     digitalWrite(Config::Pins::Digital::BUZZER, HIGH);
     delay(100);
     digitalWrite(Config::Pins::Digital::BUZZER, LOW);
-    printDisplay("BUZZER OK", 1000, true);
+    if (Config::HardwareFeatures::SSD1306)
+        printDisplay("BUZZER OK", 1000, true);
     return true;
 }
 
@@ -593,7 +606,8 @@ bool builtintLedInit()
     digitalWrite(Config::Pins::Digital::LED, LOW);
     delay(100);
     digitalWrite(Config::Pins::Digital::LED, HIGH);
-    printDisplay("LED OK", 1000, true);
+    if (Config::HardwareFeatures::SSD1306)
+        printDisplay("LED OK", 1000, true);
     return true;
 }
 

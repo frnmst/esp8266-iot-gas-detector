@@ -1,4 +1,4 @@
-/* version 0.10.0
+/* version 0.11.0
  *
  * MIT License
  *
@@ -36,6 +36,7 @@ struct Config {
         static const bool SSD1306;
         static const bool DHT11;
         static const bool MQ_2;
+        static const bool MQ_7;
     };
     struct Network {
         static const bool SEND_TO_API;
@@ -116,20 +117,14 @@ struct Config {
         };
     };
 
-    struct Pins {
-        struct Digital {
-            /* + is D*, - is GND on the ESP8266 D1 mini. */
-            static const int BUZZER = 0;            // GPIO  0: D3
-            static const int DHT_11 = 12;           // GPIO 12: D6
-            static const int NOSE = 14;             // GPIO 14: D5
-            static const int SELF_TEST = 13;        // GPIO 13: D7
-            static const int LED = LED_BUILTIN;     // GPIO 2:  D4
-        };
-        struct Analog {
-            static const int RTC = 999;
-            static const int NOSE = A0;
-        };
-    };
+    /* Board specific data. */
+    #if defined(ESP8266)
+        #include "boards/esp8266.h"
+    #elif defined(ESP32)
+        #include "boards/esp32.h"
+    #else
+        #error "unsupported arch!"
+    #endif
 
     struct Triggers {
         static const float GAS_ALARM_VOLTS_THRESHOLD;
@@ -231,22 +226,17 @@ const int Config::Triggers::GAS_ALARM_TENDENCY_ITERATIONS = 512;
 const char* Config::Other::GAS_ALARM_TEXT = "GAS ALARM!";
 const String Config::WarmingUpInfo::TEXT [] = {
     "REST API",
-    "Gas sensor",
-    "2 temperature sensors",
-    "Humidity sensor",
     "Time",
     "Date",
     "RTC",
-    "DS3231",
+    "DS3231 (w/ temp sensor)",
     "DHT11",
     "SSD1306",
     "ESP8266",
-    "Arduino",
     "MQ-2",
+    "MQ-7",
     "Buzzer",
     "WiFi",
-    "Acoustic alarm",
-    "Oled display",
     "ver. " + String(VERSION),
 };
 

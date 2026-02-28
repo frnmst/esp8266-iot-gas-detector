@@ -20,9 +20,11 @@ Arduino IDE:
 | [RTCLib](https://github.com/adafruit/RTClib) | [Adafruit](https://www.adafruit.com/) |
 | [Uptime-Library](https://github.com/YiannisBourkelis/Uptime-Library) | [Yiannis Bourkelis](https://github.com/YiannisBourkelis) |
 
-## Board
+## Boards
 
-### Special pin triggers
+### ESP8266 D1 mini
+
+#### Special pin triggers
 
 Connect the two pins with a wire to trigger the function.
 
@@ -30,7 +32,7 @@ Connect the two pins with a wire to trigger the function.
 |------------------------|-----------------------|-----------------|---------------|
 | D7 | 13 | GND | `selfTest()` |
 
-### Power usage
+#### Power usage
 
 | Components | mA   |
 |------------|-----:|
@@ -39,6 +41,11 @@ Connect the two pins with a wire to trigger the function.
 | DHT11      | 2    |
 | SSD1306    | 5    |
 | MQ-2       | 133  |
+
+### ESP32
+
+The sketch compiles and can run on an ESP32, although it has been tested
+without any sensor nor device. 
 
 ### IDE Setup
 
