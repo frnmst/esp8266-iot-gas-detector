@@ -39,6 +39,7 @@
 #include <ArduinoJson.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
+#include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <WiFiManager.h>
 #include <TimeLib.h>
@@ -47,8 +48,8 @@
 #include "uptime.h"
 
 #include "config.h"
+#include "arduino_secrets.h"
 #include "version.h"
-
 
 // Devices.
 RTC_DS3231 rtc;
@@ -69,7 +70,6 @@ int gasState, gasTendency = 0;
 char temperatureRelativeTendency = 0, humidityRelativeTendency = 0;
 bool inverted = false, gasDetected = false;
 unsigned long previousMillis = 0, previousMillisNetworkCheck = 0, previousMillisBuiltinLedHeartbeat = 0, previousMillisTimestampUpdate = 0, previousMillisDisplayData = 0, previousMillisDisplayDebugData = 0;
-WiFiClientSecure httpsClient;
 // Create a UDP instance.
 WiFiUDP udp;
 // Create an NTPClient instance: always work in UTC.
@@ -79,6 +79,7 @@ int builtinLedBrightness = 0, builtinLedFadeAmount = 5;
 const long builtinLedHeartbeatInterval = 50;
 String dTime, dDate;
 DateTime dTimeNow = DateTime();
+WiFiClient* apiClient = nullptr;
 
 String iso8601Timestamp = "";
 
@@ -89,6 +90,21 @@ String iso8601Timestamp = "";
     #define prt(x)
     #define prtn(x)
 #endif
+
+WiFiClient* getHttpClient()
+{
+    if (Config::Network::USE_SSL)
+    {
+        WiFiClientSecure* sClient = new WiFiClientSecure();
+
+        // Avoid checking certificate auth.
+        sClient->setInsecure();
+
+        return sClient;
+    }
+    else
+        return new WiFiClient();
+}
 
 void signal(int repetitions = 2, bool invertColors = false)
 {
@@ -127,10 +143,25 @@ String getJson()
 {
     JsonDocument doc;
     String output;
+    uptime::calculateUptime();
 
     JsonObject board = doc["board"].to<JsonObject>();
 
     board["id"] = Config::Network::BOARD_ID;
+
+    /* Get the total number of seconds. */
+    board["uptime_seconds"] = (
+        (uptime::getDays() * 86400)
+        + (uptime::getHours() * 3600)
+        + (uptime::getMinutes() * 60)
+        + uptime::getSeconds()
+    );
+    board["debug"] = bool(PRINT_DEBUG);
+    board["ip_address"] = WiFi.localIP().toString();
+
+    JsonObject version = doc["version"].to<JsonObject>();
+    version["sw"] = VERSION;
+    version["hw"] = HW_REVISION;
 
     JsonObject sensors = doc["sensors"].to<JsonObject>();
 
@@ -139,11 +170,14 @@ String getJson()
 
     sensors["temperature_celsius"] = averageTemperatureReading;
     sensors["humidity_percent"] = averageHumidityReading;
+
     if (gasDetected)
         sensors["gas_state_bool"] = true;
     else
         sensors["gas_state_bool"] = false;
 
+    sensors["wifi_rssi"] = WiFi.RSSI();
+    
     JsonObject computations = doc["computations"].to<JsonObject>();
     computations["gas_tendency"] = gasTendency;
     computations["timestamp_utc"] = iso8601Timestamp;
@@ -407,8 +441,6 @@ void setup()
     int i;
     bool ok, done = false;
 
-
-
     if (PRINT_DEBUG)
     {
         Serial.begin(Config::Other::DEBUG_SPEED);
@@ -542,10 +574,8 @@ void setup()
         timeClient.begin();
         if (Config::HardwareFeatures::DS3231)
             syncRTC();
+        apiClient = getHttpClient();
     }
-
-    // Avoid checking certificate auth.
-    httpsClient.setInsecure();
 }
 
 
@@ -968,40 +998,47 @@ void loop()
             if (Config::HardwareFeatures::DS3231)
                 syncRTC();
 
-            if (Config::Network::SEND_TO_API)
+            if (Config::Network::SEND_TO_API && apiClient != nullptr)
             {
                 prt("connecting to ");
                 prtn(Config::Network::HOST);
-                if (!httpsClient.connect(Config::Network::HOST, Config::Network::PORT))
-                    prtn("connection failed");
-
-                // Create the PUT request.
-                String json_data = getJson();
-                String request = String("PUT ") + Config::Network::ENDPOINT + " HTTP/1.1\r\n" +
-                                "Host: " + Config::Network::HOST + "\r\n" +
-                                "User-Agent: ESP-8266\r\n" +
-                                "Accept: */*\r\n" +
-                                "Content-Type: application/json\r\n" +
-                                "Content-Length: " + json_data.length() + "\r\n" +
-                                "Authorization: Bearer " + Config::Network::AUTHORIZATION_BEARER_TOKEN + "\r\n"
-                                "Connection: close\r\n\r\n" +
-                                json_data;
-
-                // Send the request.
-                httpsClient.print(request);
-
-                if (Config::Network::DEBUG)
+                if (!apiClient->connect(Config::Network::HOST, Config::Network::PORT))
                 {
-                    prtn(request);
-                    // Read the response.
-                    while (httpsClient.connected() || httpsClient.available())
+                    prtn("connection failed, ignoring...");
+                    apiClient->stop();
+                }
+                else
+                {
+
+                    // Create the PUT request.
+                    String json_data = getJson();
+                    String request = String("POST ") + Config::Network::ENDPOINT + "/" + Config::Network::WEBHOOK_ID + " HTTP/1.1\r\n" +
+                                    "Host: " + Config::Network::HOST + "\r\n" +
+                                    "User-Agent: " + Config::Network::USER_AGENT + "\r\n" +
+                                    "Accept: */*\r\n" +
+                                    "Content-Type: application/json\r\n" +
+                                    "Content-Length: " + json_data.length() + "\r\n" +
+                                    "Authorization: Bearer " + Config::Network::AUTHORIZATION_BEARER_TOKEN + "\r\n" +
+                                    "Connection: close\r\n\r\n" +
+                                    json_data;
+
+                    // Send the request.
+                    apiClient->print(request);
+
+                    if (Config::Network::DEBUG)
                     {
-                        if (httpsClient.available())
+                        prtn(request);
+                        // Read the response.
+                        while (apiClient->connected() || apiClient->available())
                         {
-                            String line = httpsClient.readStringUntil('\n');
-                            prtn(line);
+                            if (apiClient->available())
+                            {
+                                String line = apiClient->readStringUntil('\n');
+                                prtn(line);
+                            }
                         }
                     }
+                    apiClient->stop();
                 }
             }
         }

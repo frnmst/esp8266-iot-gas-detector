@@ -25,9 +25,6 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-// Set to 1 to enable serial print debug, 0 for production mode.
-#define PRINT_DEBUG 1
-
 #include "version.h"
 
 struct Config {
@@ -42,9 +39,12 @@ struct Config {
         static const bool SEND_TO_API;
         static const char* HOST;
         static const int PORT;
+        static const bool USE_SSL;
         static const char* ENDPOINT;
         static const char* BOARD_ID;
         static const char* AUTHORIZATION_BEARER_TOKEN;
+        static const char* WEBHOOK_ID;
+        static const char* USER_AGENT;
         static const int SEND_DATA_FREQUENCY_MS;
         static const bool DEBUG;
     };
@@ -182,39 +182,6 @@ const TimeChangeRule Config::DateTime::Tz::DST = {"CEST", Last, Sun, Mar, 2, 120
 
 // STD starts last Sunday in October.
 const TimeChangeRule Config::DateTime::Tz::STD = {"CET", Last, Sun, Oct, 3, 60};
-
-/* Network */
-// Define the constants for the Networkstruct
-const bool Config::Network::SEND_TO_API = false;
-const char* Config::Network::HOST = "my.remote.server";
-const int Config::Network::PORT = 443;
-const char* Config::Network::ENDPOINT = "/sensors/data";
-
-// This name must be unique between all boards using this program.
-const char* Config::Network::BOARD_ID = "living room";
-
-// See the wsgi.py file for information on how to generate this token.
-const char* Config::Network::AUTHORIZATION_BEARER_TOKEN = "d9b4872e-8c4a-49b3-982e-7ea2b3643143";
-const int Config::Network::SEND_DATA_FREQUENCY_MS = 60000;
-
-// true to see the response from the server on serial.
-const bool Config::Network::DEBUG = true;
-
-/* Settings applied if Config::Wifi::MANUAL == true.
- * Set these if you don't want to use the WiFi wizard.
- */
-const IPAddress Config::Wifi::Manual::LOCAL_IP(192, 168, 0, 2);
-const IPAddress Config::Wifi::Manual::GATEWAY(192, 168, 0, 1);
-const IPAddress Config::Wifi::Manual::SUBNET(255, 255, 255, 0);
-const IPAddress Config::Wifi::Manual::DNS(192, 168, 0, 1);
-
-/* WiFi Network name and password used in the wizard
- * (in auto mode, these are the config access point credentials),
- * or the ones used to connect to a WiFi network manually.
- */
-const char* Config::Wifi::SSID = "GasNose";
-// Password must be at least 8 characters.
-const char* Config::Wifi::PASSWORD = "gasnose_0000";
 
 // Higher value means less sensitive.
 const float Config::Triggers::GAS_ALARM_VOLTS_THRESHOLD = 2.0;

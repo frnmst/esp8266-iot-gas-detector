@@ -63,6 +63,143 @@ This project uses an ESP8266 board. Follow [these](https://arduino-esp8266.readt
 
 2. reboot
 
+## Home Assistant setup
+
+The firmware, starting from version `0.12.0`, is Home Assistant ready. You just
+need to define how and what needs to be extracted and formatted from the JSON
+payload.
+
+1. generate a new `Long-lived access token`:
+   1. Profile
+   2. Security
+   3. Long-lived access tokens
+   4. Create token
+   5. copy the generated token in the `Config::Network::AUTHORIZATION_BEARER_TOKEN`
+      configuration variable
+2. use this template in the `configuration.yml` file or change it to your liking
+
+   ```yaml
+   template:
+     - trigger:
+       - platform: event
+         event_type: "sensore_esp_unificato"
+       sensor:
+         - name: "ESP Temperatura"
+           unique_id: "esp_temp"
+           state: >
+             {% set data = trigger.event.data %}
+             {% if data.sensors is defined and data.sensors is defined %}
+               {{ "%.2f" | format(data.sensors.temperature_celsius | float(0.0)) }}
+             {% else %}
+               {{ none }}
+             {% endif %}
+
+           unit_of_measurement: "°C"
+           device_class: temperature
+           attributes: &esp_metadata
+             board_id: "{{ trigger.event.data.board.id if trigger.event.data is defined else 'N/A' }}"
+             sw_version: "{{ trigger.event.data.version.sw if trigger.event.data is defined else 'N/A' }}"
+             hw_rev: "{{ trigger.event.data.version.hw if trigger.event.data is defined else 'N/A' }}"
+
+         - name: "ESP Umidità"
+           unique_id: "esp_hum"
+           state: >
+             {% set data = trigger.event.data %}
+             {% if data is defined and data.sensors is defined %}
+               {{ "%.2f" | format(data.sensors.humidity_percent | float(0.0)) }}
+             {% else %}
+               {{ none }}
+             {% endif %}
+           unit_of_measurement: "%"
+           device_class: humidity
+           attributes: *esp_metadata
+
+         - name: "ESP Gas Voltaggio"
+           unique_id: "esp_gas_volts"
+           state: >
+             {% set data = trigger.event.data %}
+             {% if data is defined and data.sensors is defined %}
+               {{ "%.6f" | format(data.sensors.gas_concentration_volts | float(0.0)) }}
+             {% else %}
+               {{ none }}
+             {% endif %}
+           unit_of_measurement: "V"
+           device_class: voltage
+           attributes: *esp_metadata
+
+         - name: "ESP Tendenza Gas"
+           unique_id: "esp_gas_tendency"
+           state: >
+             {% set data = trigger.event.data %}
+             {% if data is defined and data.computations is defined %}
+               {{ data.computations.gas_tendency | int(0.0) }}
+             {% else %}
+               {{ none }}
+             {% endif %}
+           icon: "mdi:trending-up"
+           attributes: *esp_metadata
+
+         - name: "ESP Uptime"
+           unique_id: "esp_uptime"
+           state: "{{ trigger.event.data.board.uptime_seconds | int(0) if trigger.event.data is defined else none }}"
+           unit_of_measurement: "s"
+           device_class: duration
+           attributes: *esp_metadata
+
+         - name: "ESP IP Address"
+           unique_id: "esp_ip_addr"
+           state: "{{ trigger.event.data.board.ip_address if trigger.event.data is defined else 'unknown' }}"
+           icon: "mdi:ip-network"
+           attributes: *esp_metadata
+
+         - name: "ESP WiFi RSSI"
+           unique_id: "esp_rssi"
+           state: "{{ trigger.event.data.sensors.wifi_rssi | int(default=-100) }}"
+           unit_of_measurement: "dBm"
+           device_class: signal_strength
+           attributes: *esp_metadata
+
+         - name: "ESP Board ID"
+           unique_id: "esp_board_id"
+           state: "{{ trigger.event.data.board.id if trigger.event.data is defined else 'unknown' }}"
+           icon: "mdi:identifier"
+           attributes: *esp_metadata
+
+         - name: "ESP Software Version"
+           unique_id: "esp_sw_ver"
+           state: "{{ trigger.event.data.version.sw if trigger.event.data is defined else 'unknown' }}"
+           icon: "mdi:application-cog"
+
+         - name: "ESP Hardware Revision"
+           unique_id: "esp_hw_rev"
+           state: "{{ trigger.event.data.version.hw if trigger.event.data is defined else 'unknown' }}"
+           icon: "mdi:chip"
+
+         - name: "ESP serial Debug"
+           unique_id: "esp_serial_debug"
+           state: >
+             {% set data = trigger.event.data %}
+             {% if data.board.debug %}
+               ON
+             {% else %}
+               OFF
+             {% endif %}
+           attributes: *esp_metadata
+
+       binary_sensor:
+         - name: "ESP Gas"
+           unique_id: "esp_gas"
+           state: >
+             {% set data = trigger.event.data %}
+             {% if data.sensors.gas_state_bool %}
+               on
+             {% else %}
+               off
+             {% endif %}
+           device_class: gas
+           attributes: *esp_metadata
+    ```
+
 ## Version
 
 This project follows [Semver 2.0](https://semver.org/). Please look at the
