@@ -4,48 +4,7 @@
 
 ![./kicad/](kicad/gas_sensor.png)
 
-## Libraries
-
-All these libraries are required as dependencies and can be installed via the
-Arduino IDE:
-
-| Library name | Author |
-|--------------|--------|
-| [Adafruit SSD1306](https://github.com/adafruit/Adafruit_SSD1306) | [Adafruit](https://www.adafruit.com/) |
-| [DHT sensor library](https://github.com/adafruit/DHT-sensor-library) | [Adafruit](https://www.adafruit.com/) |
-| [ArduinoJson](https://arduinojson.org) | [Benoît Blanchon](https://github.com/bblanchon) |
-| [NTPClient](https://github.com/arduino-libraries/NTPClient) | [Fabrice Weinberg](https://github.com/arduino-libraries) |
-| [WiFiManager](https://github.com/tzapu/WiFiManager) | [tzapu](https://github.com/tzapu/) |
-| [Timezone](https://github.com/JChristensen/Timezone) | [Jack Christensen](https://github.com/JChristensen)
-| [RTCLib](https://github.com/adafruit/RTClib) | [Adafruit](https://www.adafruit.com/) |
-| [Uptime-Library](https://github.com/YiannisBourkelis/Uptime-Library) | [Yiannis Bourkelis](https://github.com/YiannisBourkelis) |
-
-## Boards
-
-### ESP8266 D1 mini
-
-#### Special pin triggers
-
-Connect the two pins with a wire to trigger the function.
-
-| Positive lead pin name | Positive lead GPIO id | Ground pin name | Function name |
-|------------------------|-----------------------|-----------------|---------------|
-| D7 | 13 | GND | `selfTest()` |
-
-#### Power usage
-
-| Components | mA   |
-|------------|-----:|
-| All        | 165  |
-| DS3231     | 7    |
-| DHT11      | 2    |
-| SSD1306    | 5    |
-| MQ-2       | 133  |
-
-### ESP32
-
-The sketch compiles and can run on an ESP32, although it has been tested
-without any sensor nor device. 
+## Deployment
 
 ### IDE Setup
 
@@ -63,7 +22,12 @@ This project uses an ESP8266 board. Follow [these](https://arduino-esp8266.readt
 
 2. reboot
 
-## Home Assistant setup
+### Secrets file
+
+Copy the `arduino_secrets.example.h` as `arduino_secrets.h` and change it to
+your needs
+
+### Home Assistant setup
 
 The firmware, starting from version `0.12.0`, is Home Assistant ready. You just
 need to define how and what needs to be extracted and formatted from the JSON
@@ -198,7 +162,50 @@ payload.
              {% endif %}
            device_class: gas
            attributes: *esp_metadata
-    ```
+   ```
+
+## Libraries
+
+All these libraries are required as dependencies and can be installed via the
+Arduino IDE:
+
+| Library name | Author |
+|--------------|--------|
+| [Adafruit SSD1306](https://github.com/adafruit/Adafruit_SSD1306) | [Adafruit](https://www.adafruit.com/) |
+| [DHT sensor library](https://github.com/adafruit/DHT-sensor-library) | [Adafruit](https://www.adafruit.com/) |
+| [ArduinoJson](https://arduinojson.org) | [Benoît Blanchon](https://github.com/bblanchon) |
+| [NTPClient](https://github.com/arduino-libraries/NTPClient) | [Fabrice Weinberg](https://github.com/arduino-libraries) |
+| [WiFiManager](https://github.com/tzapu/WiFiManager) | [tzapu](https://github.com/tzapu/) |
+| [Timezone](https://github.com/JChristensen/Timezone) | [Jack Christensen](https://github.com/JChristensen)
+| [RTCLib](https://github.com/adafruit/RTClib) | [Adafruit](https://www.adafruit.com/) |
+| [Uptime-Library](https://github.com/YiannisBourkelis/Uptime-Library) | [Yiannis Bourkelis](https://github.com/YiannisBourkelis) |
+
+## Boards
+
+### ESP8266 D1 mini
+
+#### Special pin triggers
+
+Connect the two pins with a wire to trigger the function.
+
+| Positive lead pin name | Positive lead GPIO id | Ground pin name | Function name |
+|------------------------|-----------------------|-----------------|---------------|
+| D7 | 13 | GND | `selfTest()` |
+
+#### Power usage
+
+| Components | mA   |
+|------------|-----:|
+| All        | 165  |
+| DS3231     | 7    |
+| DHT11      | 2    |
+| SSD1306    | 5    |
+| MQ-2       | 133  |
+
+### ESP32
+
+The sketch compiles and can run on an ESP32, although it has been tested
+without any sensor nor device. 
 
 ## Version
 
