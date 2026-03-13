@@ -1,4 +1,4 @@
-/* version 0.11.0
+/* version 0.12.0
  *
  * MIT License
  *
@@ -33,7 +33,7 @@ struct Config {
         static const bool SSD1306;
         static const bool DHT11;
         static const bool MQ_2;
-        static const bool MQ_7;
+        static const bool MQ_135;
     };
     struct Network {
         static const bool SEND_TO_API;
@@ -47,6 +47,12 @@ struct Config {
         static const char* USER_AGENT;
         static const int SEND_DATA_FREQUENCY_MS;
         static const bool DEBUG;
+    };
+
+    struct OTA {
+        struct Auth {
+            static const char *PASSWORD_MD5_HASH;
+        };
     };
 
     struct Wifi {

@@ -25,7 +25,7 @@ This project uses an ESP8266 board. Follow [these](https://arduino-esp8266.readt
 ### Secrets file
 
 Copy the `arduino_secrets.example.h` as `arduino_secrets.h` and change it to
-your needs
+your needs.
 
 ### Home Assistant setup
 
@@ -188,9 +188,10 @@ Arduino IDE:
 
 Connect the two pins with a wire to trigger the function.
 
-| Positive lead pin name | Positive lead GPIO id | Ground pin name | Function name |
-|------------------------|-----------------------|-----------------|---------------|
-| D7 | 13 | GND | `selfTest()` |
+| Positive lead pin name | Positive lead GPIO id | Ground pin name | Function name | Timeout (ms) |
+|------------------------|-----------------------|-----------------|---------------|--------------|
+| D7 | 13 | GND | `selfTest()` | 500 <= timeout < 2000 |
+| D7 | 13 | GND | `doOTA()` | >= 2000 |
 
 #### Power usage
 
@@ -221,7 +222,7 @@ Bump the version by:
 
 MIT License
 
-Copyright (c) 2024-2025 [Franco Masotti](https://blog.franco.net.eu.org/about/#contacts)
+Copyright (c) 2024-2026 [Franco Masotti](https://blog.franco.net.eu.org/about/#contacts)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

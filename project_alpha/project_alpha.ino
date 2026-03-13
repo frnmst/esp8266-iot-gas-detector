@@ -1,4 +1,4 @@
-/* version 0.11.0
+/* version 0.12.0
  *
  * MIT License
  *
@@ -37,6 +37,7 @@
     #error "unsupported arch!"
 #endif
 #include <ArduinoJson.h>
+#include <ArduinoOTA.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <WiFiClient.h>
@@ -83,6 +84,37 @@ WiFiClient* apiClient = nullptr;
 
 String iso8601Timestamp = "";
 
+/* Button action triggers. */
+typedef bool (*ActionFunc)();
+
+/* Triggers must be sorted by dsc thresholdMs. */
+struct Trigger {
+    ActionFunc action;
+    unsigned long thresholdMs;
+    bool needsWiFi;
+    const char* name;
+};
+
+/* Function prototype for triggers. */
+bool selfTest();
+bool doOTA();
+
+Trigger triggers[] = {
+    {
+        doOTA,
+        2000,
+        true,
+        "OTA"
+    },
+    {
+        selfTest,
+        500,
+        false,
+        "SELF_TEST"
+    }
+};
+const int numTriggers = sizeof(triggers) / sizeof(triggers[0]);
+
 #if PRINT_DEBUG
     #define prt(x) Serial.print(x)
     #define prtn(x) Serial.println(x)
@@ -99,7 +131,6 @@ WiFiClient* getHttpClient()
 
         // Avoid checking certificate auth.
         sClient->setInsecure();
-
         return sClient;
     }
     else
@@ -139,10 +170,8 @@ String epochToIso8601(unsigned long epoch)
     return String(buffer);
 }
 
-String getJson()
+void buildJson(JsonDocument &doc)
 {
-    JsonDocument doc;
-    String output;
     uptime::calculateUptime();
 
     JsonObject board = doc["board"].to<JsonObject>();
@@ -181,10 +210,39 @@ String getJson()
     JsonObject computations = doc["computations"].to<JsonObject>();
     computations["gas_tendency"] = gasTendency;
     computations["timestamp_utc"] = iso8601Timestamp;
+}
 
-    serializeJson(doc, output);
+void sendJSONRequest(Print &p, JsonDocument &doc)
+{
+    // Create the POST request.
+    p.print("POST ");
+    p.print(Config::Network::ENDPOINT);
+    p.print("/");
+    p.print(Config::Network::WEBHOOK_ID);
+    p.println(" HTTP/1.1");
 
-    return output;
+    p.print("Host: ");
+    p.println(Config::Network::HOST);
+
+    p.print("User-Agent: ");
+    p.println(Config::Network::USER_AGENT);
+
+    p.println("Accept: */*");
+
+    p.println("Content-Type: application/json");
+
+    p.print("Content-Length: ");
+    p.println(measureJson(doc));
+
+    p.print("Authorization: Bearer ");
+    p.println(Config::Network::AUTHORIZATION_BEARER_TOKEN);
+
+    p.println("Connection: close");
+
+    /* Required empty line before body. */
+    p.println();
+
+    serializeJson(doc, p);
 }
 
 void clearDisplay(int text_size = 2)
@@ -800,15 +858,168 @@ void displayTemperatureCelsius(float averageTemperatureReading, char temperature
     display.println(temperatureRelativeTendency);
 }
 
-void triggerFunctionWhileGrounded(int pin, bool (*operation)())
+bool doOTA()
 {
-    /* `operation` is a function pointer. */
-    // Debounce.
+    ArduinoOTA.setPasswordHash(Config::OTA::Auth::PASSWORD_MD5_HASH);
+
+    ArduinoOTA.onStart([]() {
+        String type;
+        if (ArduinoOTA.getCommand() == U_FLASH)
+        {
+            type = "sketch";
+        }
+        else
+        {  // U_FS
+            type = "filesystem";
+        }
+
+        // NOTE: if updating FS this would be the place to unmount FS using FS.end()
+        prtn("Start updating " + type);
+        if (Config::HardwareFeatures::SSD1306)
+            printDisplay("OTA start " + type, 1000, false);
+    });
+    ArduinoOTA.onEnd([]() {
+        prtn("OTA end");
+        if (Config::HardwareFeatures::SSD1306)
+            printDisplay("OTA end", 1000, true);
+    });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+        char pgr[10];
+        int percentage = progress / (total / 100);
+        snprintf(pgr, sizeof(pgr) - 1, "OTA %u%%", percentage);
+        prtn(pgr);
+        if (Config::HardwareFeatures::SSD1306)
+            printDisplay(pgr, 1000, true);
+    });
+    ArduinoOTA.onError([](ota_error_t error) {
+        char otaError[32];
+        const char *err;
+
+        if (error == OTA_AUTH_ERROR)
+        {
+            err = "Auth Failed";
+        }
+        else if (error == OTA_BEGIN_ERROR)
+        {
+            err = "Begin Failed";
+        }
+        else if (error == OTA_CONNECT_ERROR)
+        {
+            err = "Connect Failed";
+        }
+        else if (error == OTA_RECEIVE_ERROR)
+        {
+            err = "Receive Failed";
+        }
+        else if (error == OTA_END_ERROR)
+        {
+            err = "End Failed";
+        }
+
+        snprintf(otaError, sizeof(otaError), "OTA error[%u]: ", error);
+        prt(otaError);
+        prtn(err);
+
+        if (Config::HardwareFeatures::SSD1306)
+        {
+            printDisplay(otaError, 10000, false);
+            printDisplay(err, 10000, false);
+        }
+    });
+
+    ArduinoOTA.begin();
+
+    unsigned long startOTA = millis();
+    prtn("waiting 60s for OTA");
+    if (Config::HardwareFeatures::SSD1306)
+    {
+        printDisplay("WAIT OTA", 1000, true);
+    }
+    while (true)
+    {
+        ArduinoOTA.handle();
+
+        if (millis() - startOTA > 600000)
+        {
+            prtn("OTA update was not started");
+            printDisplay("NO OTA", 1000, true);
+            return false;
+        }
+        yield();
+    }
+
+    return true;
+}
+
+void triggerFunctionWhileGrounded(int pin)
+{
+    /* Debounce. */
     delay(50);
-    
-    // Optional: wait for wire to be released before continuing.
-    while(digitalRead(Config::Pins::Digital::SELF_TEST) == LOW)
-        operation();
+
+    if (digitalRead(pin) == HIGH)
+        return;
+
+    /* Measure time span. */
+    unsigned long start = millis();
+    while (digitalRead(pin) == LOW)
+    {
+        prtn("trigger mode");
+        printDisplay("TRIG MODE", 10, true);
+
+        /* Wait until the button is released. */
+        yield();
+    }
+
+    unsigned long timeSpan = millis() - start;
+    char tgr[64];
+    for (int i = 0; i < numTriggers; i++)
+    {
+        if (timeSpan >= triggers[i].thresholdMs)
+        {
+            if (triggers[i].action != NULL)
+            {
+                /* Execute the longest action. */
+                if (triggers[i].needsWiFi && WiFi.status() == WL_CONNECTED)
+                {
+                    triggers[i].action();
+                    prtn(triggers[i].name);
+                }
+                else if (!triggers[i].needsWiFi)
+                {
+                    triggers[i].action();
+                    prtn(triggers[i].name);
+                }
+                else if (triggers[i].needsWiFi && WiFi.status() != WL_CONNECTED)
+                {
+                    /* Needs wifi and is not connected, just return.*/
+                    snprintf(tgr, sizeof(tgr) - 1, "trigger %s needs WiFi and is not connected!", triggers[i].name);
+                    prtn(tgr);
+                    if (Config::HardwareFeatures::SSD1306)
+                    {
+                        printDisplay("CHECK WiFi", 250, true);
+                        printDisplay("TO TRIGGER", 250, true);
+                        printDisplay(triggers[i].name, 250, false);
+                    }
+                    return;
+                }
+
+                /* Just return after executing the first matching action by length. */
+                return;
+            }
+            else
+            {
+                snprintf(tgr, sizeof(tgr) - 1, "trigger %s undefined!", triggers[i].name);
+                prtn(tgr);
+                if (Config::HardwareFeatures::SSD1306)
+                {
+                    printDisplay("TRIGGER", 250, true);
+                    printDisplay(triggers[i].name, 250, false);
+                    printDisplay("UNDEFINED", 250, true);
+                }
+                return;
+            }
+        }
+    }
 }
 
 void loop()
@@ -899,7 +1110,7 @@ void loop()
 
         // Transform into volts. The sensor is on the 5V rail.
         averageGasReadingVolts = (averageGasReading / 1023) * 5;
-        sprintf(averageGasReadingNormalizedChar, "%.6f", averageGasReadingVolts);
+        snprintf(averageGasReadingNormalizedChar, sizeof(averageGasReadingNormalizedChar) - 1, "%.6f", averageGasReadingVolts);
 
         iso8601Timestamp = Config::HardwareFeatures::DS3231 ? epochToIso8601(dTimeNow.unixtime()) : "";
 
@@ -942,27 +1153,27 @@ void loop()
         switch (printDebugCounter)
         {
             case 0:
-                printDisplay("SERIAL DBG", 1000, true);
+                printDisplay("SERIAL DBG", 500, true);
                 if (Config::Other::DISPLAY_EXTRA_DEBUG_INFO)
                     printDebugCounter += 1;
                 break;
             case 1:
-                printDisplay(String(Config::Other::DEBUG_SPEED) + String(" Bd"), 1000, true);
+                printDisplay(String(Config::Other::DEBUG_SPEED) + String(" Bd"), 500, true);
                 printDebugCounter += 1;
                 break;
             case 2:
                 char averageGasReadingNormalizedCharTmp[8];
-                sprintf(averageGasReadingNormalizedCharTmp, "%.2f", averageGasReadingVolts);
-                printDisplay(String(averageGasReadingNormalizedCharTmp) + String(" gas"), 1000, true);
+                snprintf(averageGasReadingNormalizedCharTmp, sizeof(averageGasReadingNormalizedCharTmp) - 1, "%.2f", averageGasReadingVolts);
+                printDisplay(String(averageGasReadingNormalizedCharTmp) + String(" gas"), 500, true);
                 printDebugCounter += 1;
                 break;
             case 3:
                 uptime::calculateUptime();
-                printDisplay(String(uptime::getDays())+ String("d") + String(uptime::getHours()) + String("h up"), 1000, true);
+                printDisplay(String(uptime::getDays())+ String("d") + String(uptime::getHours()) + String("h up"), 500, true);
                 printDebugCounter += 1;
                 break;
             case 4:
-                printDisplay(String("SV ") + String(VERSION), 1000, true);
+                printDisplay(String("SV ") + String(VERSION), 500, true);
                 printDebugCounter += 1;
                 break;
             case 5:
@@ -973,9 +1184,9 @@ void loop()
                 break;
             case 6:
                 if (Config::Wifi::WORK_OFFLINE)
-                    printDisplay("OFFLN MODE", 1000, true);
+                    printDisplay("OFFLN MODE", 500, true);
                 else
-                    printDisplay("ONLIN MODE", 1000, true);
+                    printDisplay("ONLIN MODE", 500, true);
 
                 // Rotate debug prints.
                 printDebugCounter = 0;
@@ -1009,32 +1220,26 @@ void loop()
                 }
                 else
                 {
-
-                    // Create the PUT request.
-                    String json_data = getJson();
-                    String request = String("POST ") + Config::Network::ENDPOINT + "/" + Config::Network::WEBHOOK_ID + " HTTP/1.1\r\n" +
-                                    "Host: " + Config::Network::HOST + "\r\n" +
-                                    "User-Agent: " + Config::Network::USER_AGENT + "\r\n" +
-                                    "Accept: */*\r\n" +
-                                    "Content-Type: application/json\r\n" +
-                                    "Content-Length: " + json_data.length() + "\r\n" +
-                                    "Authorization: Bearer " + Config::Network::AUTHORIZATION_BEARER_TOKEN + "\r\n" +
-                                    "Connection: close\r\n\r\n" +
-                                    json_data;
-
-                    // Send the request.
-                    apiClient->print(request);
+                    JsonDocument doc;
+                    buildJson(doc);
+                    sendJSONRequest(*apiClient, doc);
 
                     if (Config::Network::DEBUG)
                     {
-                        prtn(request);
+                        #ifdef PRINT_DEBUG
+                            sendJSONRequest(Serial, doc);    
+                        #endif
+
                         // Read the response.
                         while (apiClient->connected() || apiClient->available())
                         {
                             if (apiClient->available())
                             {
-                                String line = apiClient->readStringUntil('\n');
-                                prtn(line);
+                                char buffer[64];
+                                /* Keep space for '\0'. */
+                                size_t length = apiClient->readBytesUntil('\n', buffer, sizeof(buffer) - 1);
+                                buffer[length] = '\0';
+                                prtn(buffer);
                             }
                         }
                     }
@@ -1077,5 +1282,5 @@ void loop()
             builtinLedFadeAmount = -builtinLedFadeAmount;
     }
 
-    triggerFunctionWhileGrounded(Config::Pins::Digital::SELF_TEST, selfTest);
+    triggerFunctionWhileGrounded(Config::Pins::Digital::SELF_TEST);
 }

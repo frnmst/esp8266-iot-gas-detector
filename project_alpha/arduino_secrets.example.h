@@ -1,4 +1,4 @@
-/* version 0.11.0
+/* version 0.12.0
  *
  * MIT License
  *
@@ -62,6 +62,9 @@ const char* Config::Network::BOARD_ID = "living room";
 const char* Config::Network::AUTHORIZATION_BEARER_TOKEN = "d9b4872e-8c4a-49b3-982e-7ea2b3643143";
 const int Config::Network::SEND_DATA_FREQUENCY_MS = 60000;
 
+/* MD5 hash for 'password'. */
+const char *Config::OTA::Auth::PASSWORD_MD5_HASH = "5f4dcc3b5aa765d61d8327deb882cf99";
+
 /* WiFi Network name and password used in the wizard
  * (in auto mode, these are the config access point credentials),
  * or the ones used to connect to a WiFi network manually.
@@ -84,7 +87,7 @@ const bool Config::HardwareFeatures::DS3231 = true;
 const bool Config::HardwareFeatures::SSD1306 = true;
 const bool Config::HardwareFeatures::DHT11 = true;
 const bool Config::HardwareFeatures::MQ_2 = true;
-const bool Config::HardwareFeatures::MQ_7 = false;
+const bool Config::HardwareFeatures::MQ_135 = false;
 
 /* Display rotation 
  *     0 = 0°
