@@ -78,11 +78,11 @@ NTPClient timeClient(udp, Config::DateTime::NTP_SERVER, 0);
 int checkWifi = 1, printDebugCounter = 0;
 int builtinLedBrightness = 0, builtinLedFadeAmount = 5;
 const long builtinLedHeartbeatInterval = 50;
-String dTime, dDate;
+char dTime[16], dDate[32];
 DateTime dTimeNow = DateTime();
 WiFiClient* apiClient = nullptr;
 
-String iso8601Timestamp = "";
+char iso8601Timestamp[25];
 
 /* Button action triggers. */
 typedef bool (*ActionFunc)();
@@ -137,22 +137,22 @@ WiFiClient* getHttpClient()
         return new WiFiClient();
 }
 
-void signal(int repetitions = 2, bool invertColors = false)
+void signal(int repetitions = 2, bool invertColors = false, int lengthMs = Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_DELAY_MS)
 {
     for (int i = 0; i < repetitions; i++)
     {
         digitalWrite(Config::Pins::Digital::BUZZER, HIGH);
         digitalWrite(Config::Pins::Digital::LED, LOW);  // Turn the LED on (Note that LOW is the voltage level but actually the LED is on; this is because it is active low on the ESP-01)
-        delay(Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_DELAY_MS);
+        delay(lengthMs);
         digitalWrite(Config::Pins::Digital::BUZZER, LOW);
         digitalWrite(Config::Pins::Digital::LED, HIGH);  // Turn the LED off by making the voltage HIGH
-        delay(Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_DELAY_MS);
+        delay(lengthMs);
         if (Config::HardwareFeatures::SSD1306 && invertColors)
             invertDisplayColors();
     }
 }
 
-String epochToIso8601(unsigned long epoch)
+void epochToIso8601(unsigned long epoch, char *iso8601)
 {
     // Create a time structure.
     struct tm timeinfo;
@@ -164,10 +164,7 @@ String epochToIso8601(unsigned long epoch)
     gmtime_r(&epochTime, &timeinfo);
 
     // Format the time as ISO 8601.
-    char buffer[30];
-    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S %z", &timeinfo);
-
-    return String(buffer);
+    strftime(iso8601, sizeof(&iso8601), "%Y-%m-%d %H:%M:%S %z", &timeinfo);
 }
 
 void buildJson(JsonDocument &doc)
@@ -187,6 +184,13 @@ void buildJson(JsonDocument &doc)
     );
     board["debug"] = bool(PRINT_DEBUG);
     board["ip_address"] = WiFi.localIP().toString();
+
+    JsonObject hardwareFeatures = board["hardware_features"].to<JsonObject>();
+    hardwareFeatures["DS3231"] = Config::HardwareFeatures::DS3231;
+    hardwareFeatures["SSD1306"] = Config::HardwareFeatures::SSD1306;
+    hardwareFeatures["DHT11"] = Config::HardwareFeatures::DHT11;
+    hardwareFeatures["MQ_2"] = Config::HardwareFeatures::MQ_2;
+    hardwareFeatures["MQ_135"] = Config::HardwareFeatures::MQ_135;
 
     JsonObject version = doc["version"].to<JsonObject>();
     version["sw"] = VERSION;
@@ -253,13 +257,13 @@ void clearDisplay(int text_size = 2)
     display.setCursor(0,0);
 }
 
-void printDisplay(String text, int timeout = 5000, bool center = false)
+void printDisplay(const char *text, int timeout = 5000, bool center = false)
 {
-    int16_t x, y; // Variables to hold the position
+    // Variables to hold the position.
+    int16_t x, y;
     uint16_t textWidth, textHeight;
 
-    // Transform the String to a const char* before calling the getTextBounds method.
-    display.getTextBounds(text.c_str(), 0, 0, &x, &y, &textWidth, &textHeight);
+    display.getTextBounds(text, 0, 0, &x, &y, &textWidth, &textHeight);
     int16_t xPos = (Config::Display::WIDTH - textWidth) / 2; // Calculate x position
     int16_t yPos = (Config::Display::HEIGHT - textHeight) / 2; // Center vertically
 
@@ -401,12 +405,13 @@ bool connectAutoWifi()
 
     if (Config::HardwareFeatures::SSD1306)
     {
+        char accessPointString[64];
+
         printDisplay("WiFi\nauto\nconfig\n", 1000);
-        printDisplay("WiFi\naccess\npoint\nfor " + String(Config::Wifi::WIFIMANAGER_CONFIG_PORTAL_TIMEOUT_SECONDS) + "s", 2500);
-        printDisplay(
-            "NW: " + String(Config::Wifi::SSID)
-            + "\nPW: " + String(Config::Wifi::PASSWORD)
-        );
+        snprintf(accessPointString, sizeof(accessPointString), "WiFi\naccess\npoint\nfor %ds", Config::Wifi::WIFIMANAGER_CONFIG_PORTAL_TIMEOUT_SECONDS);
+        printDisplay(accessPointString, 2500);
+        snprintf(accessPointString, sizeof(accessPointString), "NW: %s\nPW: %s", Config::Wifi::SSID, Config::Wifi::PASSWORD);
+        printDisplay(accessPointString);
     }
 
     // Config access point.
@@ -444,10 +449,10 @@ bool syncRTC()
         return false;
 }
 
-String easterEgg()
+void easterEgg(char *easterEggString)
 {
     int r = random(0, Config::WarmingUpInfo::TEXT_LENGTH);
-    return "Gas Nose Project\n\n" + Config::WarmingUpInfo::TEXT[r] + "\n\n";
+    snprintf(easterEggString, sizeof(easterEggString), "Gas Nose Project\n\n%s\n\n");
 }
 
 bool sketchJustUploaded()
@@ -455,14 +460,15 @@ bool sketchJustUploaded()
     // These values should never be changed.
     #define EEPROM_SIZE 1
     #define ADDR_HASH   0
+    char md5[3];
 
     EEPROM.begin(EEPROM_SIZE);
 
     // Compute one‐byte fingerprint of this sketch (32 hex characters).
-    String md5 = ESP.getSketchMD5();
+    snprintf(md5, 2, "%s", ESP.getSketchMD5());
 
     // Get the first 2 chars as `char` of the checksum, then transform them into base 16 int.
-    uint8_t hash = strtol(md5.substring(0, 2).c_str(), nullptr, 16);
+    uint8_t hash = strtol(md5, NULL, 16);
     uint8_t prev = EEPROM.read(ADDR_HASH);
 
     if (hash != prev)
@@ -524,7 +530,13 @@ void setup()
     }
 
     if (Config::HardwareFeatures::SSD1306)
-        printDisplay(String("SW version\n") + String(VERSION), 2000, false);
+    {
+        char versionString[32];
+
+        printDisplay("WiFi\nauto\nconfig\n", 1000);
+        snprintf(versionString, sizeof(versionString), "SW version\n%s", VERSION);
+        printDisplay(versionString, 2000, false);
+    }
 
     if (Config::HardwareFeatures::DS3231)
     {
@@ -551,7 +563,11 @@ void setup()
         if (Config::HardwareFeatures::SSD1306)
         {
             if (wifi)
-                printDisplay("SSID: " + WiFi.SSID() + "\n" + "RSSI: " + WiFi.RSSI());
+            {
+                char wifiString[64];
+                snprintf(wifiString, sizeof(wifiString), "SSID: %s\nRSSI: %d", WiFi.SSID(), WiFi.RSSI());
+                printDisplay(wifiString);
+            }
             else
                 printDisplay("NO WiFi\nskipping...");
         }
@@ -563,6 +579,8 @@ void setup()
         // The MQ-2 sensor senses the gas after a few seconds.
         delay(4000);
     }
+
+    char easterEggString[64];
 
     /* If still not in temperature and within timeout, continue waiting. */
     for (i = 0;
@@ -579,6 +597,7 @@ void setup()
 
         if (Config::HardwareFeatures::SSD1306)
         {
+            easterEgg(easterEggString);
             clearDisplay(1);
             display.println("Warming MQ-2 gas");
             display.println("sensor, please wait");
@@ -586,7 +605,7 @@ void setup()
             display.print(" of ");
             display.println(Config::Sensor::Setting::MQ_2_WARM_UP_MS / 1000);
             display.println("seconds");
-            display.println(easterEgg());
+            display.println(easterEggString);
             display.display();
             delay(1000);
         }
@@ -792,9 +811,8 @@ void invertDisplayColors()
         display.invertDisplay(false);
 }
 
-String getCurrentTime(DateTime now, const char* format = Config::DateTime::Format::TIME)
+void getCurrentTime(DateTime now,  char *buffer, size_t length, const char* format = Config::DateTime::Format::TIME)
 {
-    char buffer[16];
     struct tm timeinfo;
 
     timeinfo.tm_hour = now.hour();
@@ -804,14 +822,11 @@ String getCurrentTime(DateTime now, const char* format = Config::DateTime::Forma
     // Not considering daylight saving time: datetime provided to this function is naive.
     timeinfo.tm_isdst = 0;
 
-    strftime(buffer, sizeof(buffer), format, &timeinfo);
-
-    return String(buffer);
+    strftime(buffer, length, format, &timeinfo);
 }
 
-String getCurrentDate(DateTime now, const char* format = Config::DateTime::Format::DATE)
+void getCurrentDate(DateTime now, char *buffer, size_t length, const char* format = Config::DateTime::Format::DATE)
 {
-    char buffer[32];
     struct tm dateinfo;
 
     dateinfo.tm_year = now.year() - 1900; // Year since 1900.
@@ -821,9 +836,7 @@ String getCurrentDate(DateTime now, const char* format = Config::DateTime::Forma
     // Not considering daylight saving time: datetime provided to this function is naive.
     dateinfo.tm_isdst = 0;
 
-    strftime(buffer, sizeof(buffer),format, &dateinfo);
-
-    return String(buffer);
+    strftime(buffer, length, format, &dateinfo);
 }
 
 void raiseGasAlarm()
@@ -863,7 +876,8 @@ bool doOTA()
     ArduinoOTA.setPasswordHash(Config::OTA::Auth::PASSWORD_MD5_HASH);
 
     ArduinoOTA.onStart([]() {
-        String type;
+        const char *type;
+
         if (ArduinoOTA.getCommand() == U_FLASH)
         {
             type = "sketch";
@@ -874,9 +888,15 @@ bool doOTA()
         }
 
         // NOTE: if updating FS this would be the place to unmount FS using FS.end()
-        prtn("Start updating " + type);
+        prt("Start updating ");
+        prtn(type);
         if (Config::HardwareFeatures::SSD1306)
-            printDisplay("OTA start " + type, 1000, false);
+        {
+            char OTAStartString[20];
+            snprintf(OTAStartString, sizeof(OTAStartString), "OTA\nstart\n%s", type);
+            printDisplay(OTAStartString, 5000, false);
+            signal(1, false, 10);
+        }
     });
     ArduinoOTA.onEnd([]() {
         prtn("OTA end");
@@ -886,10 +906,11 @@ bool doOTA()
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
         char pgr[10];
         int percentage = progress / (total / 100);
-        snprintf(pgr, sizeof(pgr) - 1, "OTA %u%%", percentage);
+        snprintf(pgr, sizeof(pgr), "OTA %u%%", percentage);
         prtn(pgr);
         if (Config::HardwareFeatures::SSD1306)
             printDisplay(pgr, 1000, true);
+        signal(1, false, 10);
     });
     ArduinoOTA.onError([](ota_error_t error) {
         char otaError[32];
@@ -971,7 +992,6 @@ void triggerFunctionWhileGrounded(int pin)
     }
 
     unsigned long timeSpan = millis() - start;
-    char tgr[64];
     for (int i = 0; i < numTriggers; i++)
     {
         if (timeSpan >= triggers[i].thresholdMs)
@@ -992,8 +1012,10 @@ void triggerFunctionWhileGrounded(int pin)
                 else if (triggers[i].needsWiFi && WiFi.status() != WL_CONNECTED)
                 {
                     /* Needs wifi and is not connected, just return.*/
-                    snprintf(tgr, sizeof(tgr) - 1, "trigger %s needs WiFi and is not connected!", triggers[i].name);
-                    prtn(tgr);
+                    prt("trigger ");
+                    prt(triggers[i].name);
+                    prtn(" needs WiFi and is not connected!");
+
                     if (Config::HardwareFeatures::SSD1306)
                     {
                         printDisplay("CHECK WiFi", 250, true);
@@ -1008,8 +1030,10 @@ void triggerFunctionWhileGrounded(int pin)
             }
             else
             {
-                snprintf(tgr, sizeof(tgr) - 1, "trigger %s undefined!", triggers[i].name);
-                prtn(tgr);
+                prt("trigger ");
+                prt(triggers[i].name);
+                prtn(" is undefined!");
+
                 if (Config::HardwareFeatures::SSD1306)
                 {
                     printDisplay("TRIGGER", 250, true);
@@ -1046,8 +1070,8 @@ void loop()
         // Transform the board time to localtime.
         time_t localTime = localTZ.toLocal(utc, &tcr);
 
-        dTime = getCurrentTime(localTime);
-        dDate = getCurrentDate(localTime);
+        getCurrentTime(localTime, dTime, sizeof(dTime));
+        getCurrentDate(localTime, dDate, sizeof(dDate));
     }
 
     if (currentMillis - previousMillisDisplayData >= Config::Display::DISPLAY_TIMEOUT_MS && !gasDetected)
@@ -1110,9 +1134,11 @@ void loop()
 
         // Transform into volts. The sensor is on the 5V rail.
         averageGasReadingVolts = (averageGasReading / 1023) * 5;
-        snprintf(averageGasReadingNormalizedChar, sizeof(averageGasReadingNormalizedChar) - 1, "%.6f", averageGasReadingVolts);
+        snprintf(averageGasReadingNormalizedChar, sizeof(averageGasReadingNormalizedChar), "%.6f", averageGasReadingVolts);
 
-        iso8601Timestamp = Config::HardwareFeatures::DS3231 ? epochToIso8601(dTimeNow.unixtime()) : "";
+        char iso8601Timestamp[30];
+        epochToIso8601(dTimeNow.unixtime(), iso8601Timestamp);
+        Config::HardwareFeatures::DS3231 ? iso8601Timestamp : "";
 
         prt("MQ2 sensor avg V: ");
         prtn(averageGasReadingVolts);
@@ -1149,6 +1175,8 @@ void loop()
     if (PRINT_DEBUG && Config::HardwareFeatures::SSD1306 && currentMillis - previousMillisDisplayDebugData >= Config::Display::DISPLAY_DEBUG_DATA_FREQUENCY_MS)
     {
         previousMillisDisplayDebugData = currentMillis;
+        /* 10 chars + '\0'. */
+        char displayData[11];
 
         switch (printDebugCounter)
         {
@@ -1158,28 +1186,33 @@ void loop()
                     printDebugCounter += 1;
                 break;
             case 1:
-                printDisplay(String(Config::Other::DEBUG_SPEED) + String(" Bd"), 500, true);
+                snprintf(displayData, sizeof(displayData), "%d Bd", Config::Other::DEBUG_SPEED);
+                printDisplay(displayData, 500, true);
                 printDebugCounter += 1;
                 break;
             case 2:
                 char averageGasReadingNormalizedCharTmp[8];
-                snprintf(averageGasReadingNormalizedCharTmp, sizeof(averageGasReadingNormalizedCharTmp) - 1, "%.2f", averageGasReadingVolts);
-                printDisplay(String(averageGasReadingNormalizedCharTmp) + String(" gas"), 500, true);
+                snprintf(averageGasReadingNormalizedCharTmp, sizeof(averageGasReadingNormalizedCharTmp), "%.2f", averageGasReadingVolts);
+                snprintf(displayData, sizeof(displayData), "%s gas", averageGasReadingNormalizedCharTmp);
+                printDisplay(displayData, 500, true);
                 printDebugCounter += 1;
                 break;
             case 3:
                 uptime::calculateUptime();
-                printDisplay(String(uptime::getDays())+ String("d") + String(uptime::getHours()) + String("h up"), 500, true);
+                snprintf(displayData, sizeof(displayData), "%dd %dh up", uptime::getDays(), uptime::getHours());
+                printDisplay(displayData, 500, true);
                 printDebugCounter += 1;
                 break;
             case 4:
-                printDisplay(String("SV ") + String(VERSION), 500, true);
+                snprintf(displayData, sizeof(displayData), "SV %s", VERSION);
+                printDisplay(displayData, 500, true);
                 printDebugCounter += 1;
                 break;
             case 5:
-                printDisplay("SELF-TEST", 333, true);
+                printDisplay("TRIGGERS", 333, true);
                 printDisplay("WITH GPIO", 333, true);
-                printDisplay(String(Config::Pins::Digital::SELF_TEST) + String(" + GND"), 333, true);
+                snprintf(displayData, sizeof(displayData), "%s + GND", Config::Pins::Digital::SELF_TEST);
+                printDisplay(displayData, 333, true);
                 printDebugCounter += 1;
                 break;
             case 6:
