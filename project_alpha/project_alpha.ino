@@ -70,7 +70,7 @@ static int gasIndex = 0, temperatureIndex = 0, humidityIndex = 0;
 int gasState, gasTendency = 0;
 char temperatureRelativeTendency = 0, humidityRelativeTendency = 0;
 bool inverted = false, gasDetected = false;
-unsigned long previousMillis = 0, previousMillisNetworkCheck = 0, previousMillisBuiltinLedHeartbeat = 0, previousMillisTimestampUpdate = 0, previousMillisDisplayData = 0, previousMillisDisplayDebugData = 0;
+unsigned long previousMillis = 0, previousMillisNetworkCheck = 0, previousMillisBuiltinLedHeartbeat = 0, previousMillisTimestampUpdate = 0, previousMillisDisplayData = 0, previousMillisDisplayDebugData = 0, previousMillisSetUpdateRTC = 0;
 // Create a UDP instance.
 WiFiUDP udp;
 // Create an NTPClient instance: always work in UTC.
@@ -82,7 +82,7 @@ char dTime[16], dDate[32];
 DateTime dTimeNow = DateTime();
 WiFiClient* apiClient = nullptr;
 
-char iso8601Timestamp[25];
+char iso8601Timestamp[26];
 
 /* Button action triggers. */
 typedef bool (*ActionFunc)();
@@ -146,13 +146,16 @@ void signal(int repetitions = 2, bool invertColors = false, int lengthMs = Confi
         delay(lengthMs);
         digitalWrite(Config::Pins::Digital::BUZZER, LOW);
         digitalWrite(Config::Pins::Digital::LED, HIGH);  // Turn the LED off by making the voltage HIGH
-        delay(lengthMs);
+
+        if (i < repetitions - 1)
+            delay(lengthMs);
+
         if (Config::HardwareFeatures::SSD1306 && invertColors)
             invertDisplayColors();
     }
 }
 
-void epochToIso8601(unsigned long epoch, char *iso8601)
+void epochToIso8601(unsigned long epoch, char *iso8601, size_t iso8601Length)
 {
     // Create a time structure.
     struct tm timeinfo;
@@ -164,7 +167,8 @@ void epochToIso8601(unsigned long epoch, char *iso8601)
     gmtime_r(&epochTime, &timeinfo);
 
     // Format the time as ISO 8601.
-    strftime(iso8601, sizeof(&iso8601), "%Y-%m-%d %H:%M:%S %z", &timeinfo);
+    if (strftime(iso8601, iso8601Length, "%Y-%m-%d %H:%M:%S %z", &timeinfo) == 0)
+        prtn("strftime buffer error");
 }
 
 void buildJson(JsonDocument &doc)
@@ -257,7 +261,7 @@ void clearDisplay(int text_size = 2)
     display.setCursor(0,0);
 }
 
-void printDisplay(const char *text, int timeout = 5000, bool center = false)
+void printDisplay(const char *text, int timeout = 5000, bool center = false, int textSize = 2)
 {
     // Variables to hold the position.
     int16_t x, y;
@@ -267,9 +271,11 @@ void printDisplay(const char *text, int timeout = 5000, bool center = false)
     int16_t xPos = (Config::Display::WIDTH - textWidth) / 2; // Calculate x position
     int16_t yPos = (Config::Display::HEIGHT - textHeight) / 2; // Center vertically
 
-    clearDisplay();
+    clearDisplay(textSize);
 
-    prtn(text);
+    prt("<OSD>");
+    prt(text);
+    prtn("</OSD>");
     if (center)
     {
         display.setCursor(xPos, yPos);
@@ -436,8 +442,6 @@ bool connectAutoWifi()
 
 bool syncRTC()
 {
-    /* Return true if ok, false otherwise. */
-
     if (timeClient.update())
     {
         time_t localTime = localTZ.toLocal(timeClient.getEpochTime()) + Config::DateTime::Tz::COMPUTER_NAIVE_TIME_TO_UTC_SECONDS_OFFSET;
@@ -449,35 +453,38 @@ bool syncRTC()
         return false;
 }
 
-void easterEgg(char *easterEggString)
+void easterEgg(char *easterEggString, size_t easterEggStringLength)
 {
     int r = random(0, Config::WarmingUpInfo::TEXT_LENGTH);
-    snprintf(easterEggString, sizeof(easterEggString), "Gas Nose Project\n\n%s\n\n");
+    snprintf(easterEggString, easterEggStringLength, "Gas Nose Project\n\n%s\n\n", Config::WarmingUpInfo::TEXT[r]);
 }
 
 bool sketchJustUploaded()
 {
     // These values should never be changed.
-    #define EEPROM_SIZE 1
+    #define EEPROM_SIZE 4
     #define ADDR_HASH   0
-    char md5[3];
+    char md5[9];
 
     EEPROM.begin(EEPROM_SIZE);
 
-    // Compute one‐byte fingerprint of this sketch (32 hex characters).
-    snprintf(md5, 2, "%s", ESP.getSketchMD5());
+    /* Compute one‐byte fingerprint of this sketch (32 hex characters),
+     * using the first 8 characters of the md5 string.
+     */
+    snprintf(md5, sizeof(md5), "%s", ESP.getSketchMD5().c_str());
 
-    // Get the first 2 chars as `char` of the checksum, then transform them into base 16 int.
-    uint8_t hash = strtol(md5, NULL, 16);
-    uint8_t prev = EEPROM.read(ADDR_HASH);
+    // Transform the checksum prefix into base 16 int.
+    uint32_t hash = strtoul(md5, NULL, 16);
+    uint32_t prev;
+    EEPROM.get(ADDR_HASH, prev);
 
     if (hash != prev)
     {
-        EEPROM.write(ADDR_HASH, hash);
+        EEPROM.put(ADDR_HASH, hash);
         EEPROM.commit();
 
         prtn("EEPROM flag not set, adjusting RTC from compile time");
-        prt("sketch MD5 hash differs: ");
+        prt("sketch MD5 extract hash differs: ");
         prt(hash);
         prt(" vs ");
         prtn(prev);
@@ -486,7 +493,9 @@ bool sketchJustUploaded()
     }
     else
     {
-        prtn("sketch not changed, no need to manually set the time.");
+        prt("sketch not changed, MD5 extract hash is: ");
+        prt(hash);
+        prtn(", no need to manually set the time");
     }
 
     return false;
@@ -494,7 +503,7 @@ bool sketchJustUploaded()
 
 void setPins()
 {
-    pinMode(Config::Pins::Digital::NOSE, INPUT);
+    pinMode(Config::Pins::Digital::MQ_2, INPUT);
     pinMode(Config::Pins::Digital::BUZZER, OUTPUT);
     pinMode(Config::Pins::Digital::LED, OUTPUT);
     pinMode(Config::Pins::Digital::SELF_TEST, INPUT_PULLUP);
@@ -532,8 +541,6 @@ void setup()
     if (Config::HardwareFeatures::SSD1306)
     {
         char versionString[32];
-
-        printDisplay("WiFi\nauto\nconfig\n", 1000);
         snprintf(versionString, sizeof(versionString), "SW version\n%s", VERSION);
         printDisplay(versionString, 2000, false);
     }
@@ -573,11 +580,11 @@ void setup()
         }
     }
 
-    if (Config::HardwareFeatures::MQ_2)
+    if (Config::HardwareFeatures::MQ_2 || Config::HardwareFeatures::MQ_135)
     {
-        prtn("Warming up MQ-2 sensor");
-        // The MQ-2 sensor senses the gas after a few seconds.
-        delay(4000);
+        prtn("Warming up MQ sensors");
+        // Some MQ-* sensors (e.g. MQ-2) sense gas a few seconds after being powered.
+        // delay(4000);
     }
 
     char easterEggString[64];
@@ -586,18 +593,18 @@ void setup()
     for (i = 0;
          Config::HardwareFeatures::MQ_2
          && i < Config::Sensor::Setting::MQ_2_WARM_UP_MS / 1000
-         && digitalRead(Config::Pins::Digital::NOSE) == LOW;
+         && digitalRead(Config::Pins::Digital::MQ_2) == LOW;
          i++
     )
     {
-        prt("warming ");
+        prt("warming seconds ");
         prt(i);
         prt(" of ");
         prtn(Config::Sensor::Setting::MQ_2_WARM_UP_MS / 1000);
 
         if (Config::HardwareFeatures::SSD1306)
         {
-            easterEgg(easterEggString);
+            easterEgg(easterEggString, sizeof(easterEggString));
             clearDisplay(1);
             display.println("Warming MQ-2 gas");
             display.println("sensor, please wait");
@@ -615,21 +622,25 @@ void setup()
     {
         if (Config::HardwareFeatures::SSD1306)
         {
-            clearDisplay();
-            display.println("sample ");
-            display.println(i + 1);
-            display.println("of ");
+            easterEgg(easterEggString, sizeof(easterEggString));
+            clearDisplay(1);
+            display.println("Sampling sensor");
+            display.println("Please wait");
+            display.print(i + 1);
+            display.print(" of ");
             display.println(Config::Sensor::Setting::READINGS_BUFFER);
+            display.println(easterEggString);
             display.display();
+            clearDisplay();
         }
 
-        prt("sampling ");
-        prt(i + 1);
-        prt(" of ");
+        prtn("sample ");
+        prtn(i + 1);
+        prtn("of");
         prtn(Config::Sensor::Setting::READINGS_BUFFER);
 
         if (Config::HardwareFeatures::MQ_2)
-            gasSensorReadings[i] = analogRead(Config::Pins::Analog::NOSE);
+            gasSensorReadings[i] = analogRead(Config::Pins::Analog::MQ_2);
         else
             gasSensorReadings[i] = 0;
 
@@ -654,7 +665,6 @@ void setup()
         apiClient = getHttpClient();
     }
 }
-
 
 bool dht11Init()
 {
@@ -805,7 +815,6 @@ void invertDisplayColors()
 {
     inverted = !inverted;
     if (inverted)
-        // Invert colors.
         display.invertDisplay(true);
     else
         display.invertDisplay(false);
@@ -845,21 +854,22 @@ void raiseGasAlarm()
     if (Config::HardwareFeatures::SSD1306)
         printDisplay(Config::Other::GAS_ALARM_TEXT, 0, true);
     signal(Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_ITERATIONS, true);
-    // Reset display colors.
+
     if (Config::HardwareFeatures::SSD1306)
+        // Reset display colors.
         display.invertDisplay(false);
 }
 
 void getTemperatureCelsius(float &temperatureCelsius, float &temperatureCelsiusDs3231, float &temperatureCelsiusDht11)
 {
-        temperatureCelsiusDs3231 = Config::HardwareFeatures::DS3231 ? rtc.getTemperature() + Config::Sensor::MeasurmentOffset::TEMPERATURE_CELSIUS_DS3231: 0.0;
-        temperatureCelsiusDht11 = Config::HardwareFeatures::DHT11 ? dht.readTemperature() + Config::Sensor::MeasurmentOffset::TEMPERATURE_CELSIUS_DHT11 : 0.0;
-        if (Config::HardwareFeatures::DS3231 && Config::HardwareFeatures::DHT11)
-            temperatureCelsius = (temperatureCelsiusDs3231 + temperatureCelsiusDht11) / 2;
-        else if (!Config::HardwareFeatures::DS3231 && Config::HardwareFeatures::DHT11)
-            temperatureCelsius = temperatureCelsiusDht11;
-        else if (Config::HardwareFeatures::DS3231 && !Config::HardwareFeatures::DHT11)
-            temperatureCelsius = temperatureCelsiusDs3231;
+    temperatureCelsiusDs3231 = Config::HardwareFeatures::DS3231 ? rtc.getTemperature() + Config::Sensor::MeasurmentOffset::TEMPERATURE_CELSIUS_DS3231: 0.0;
+    temperatureCelsiusDht11 = Config::HardwareFeatures::DHT11 ? dht.readTemperature() + Config::Sensor::MeasurmentOffset::TEMPERATURE_CELSIUS_DHT11 : 0.0;
+    if (Config::HardwareFeatures::DS3231 && Config::HardwareFeatures::DHT11)
+        temperatureCelsius = (temperatureCelsiusDs3231 + temperatureCelsiusDht11) / 2;
+    else if (!Config::HardwareFeatures::DS3231 && Config::HardwareFeatures::DHT11)
+        temperatureCelsius = temperatureCelsiusDht11;
+    else if (Config::HardwareFeatures::DS3231 && !Config::HardwareFeatures::DHT11)
+        temperatureCelsius = temperatureCelsiusDs3231;
 }
 
 void displayTemperatureCelsius(float averageTemperatureReading, char temperatureRelativeTendency)
@@ -874,21 +884,19 @@ void displayTemperatureCelsius(float averageTemperatureReading, char temperature
 bool doOTA()
 {
     ArduinoOTA.setPasswordHash(Config::OTA::Auth::PASSWORD_MD5_HASH);
+    ArduinoOTA.setHostname(Config::OTA::Generic::HOSTNAME);
 
     ArduinoOTA.onStart([]() {
         const char *type;
 
         if (ArduinoOTA.getCommand() == U_FLASH)
-        {
             type = "sketch";
-        }
         else
-        {  // U_FS
+            // U_FS
             type = "filesystem";
-        }
 
         // NOTE: if updating FS this would be the place to unmount FS using FS.end()
-        prt("Start updating ");
+        prt("OTA start ");
         prtn(type);
         if (Config::HardwareFeatures::SSD1306)
         {
@@ -901,7 +909,10 @@ bool doOTA()
     ArduinoOTA.onEnd([]() {
         prtn("OTA end");
         if (Config::HardwareFeatures::SSD1306)
-            printDisplay("OTA end", 1000, true);
+        {
+            printDisplay("OTA END", 1000, true);
+            signal(1);
+        }
     });
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
         char pgr[10];
@@ -909,7 +920,7 @@ bool doOTA()
         snprintf(pgr, sizeof(pgr), "OTA %u%%", percentage);
         prtn(pgr);
         if (Config::HardwareFeatures::SSD1306)
-            printDisplay(pgr, 1000, true);
+            printDisplay(pgr, 10, true);
         signal(1, false, 10);
     });
     ArduinoOTA.onError([](ota_error_t error) {
@@ -917,25 +928,15 @@ bool doOTA()
         const char *err;
 
         if (error == OTA_AUTH_ERROR)
-        {
             err = "Auth Failed";
-        }
         else if (error == OTA_BEGIN_ERROR)
-        {
             err = "Begin Failed";
-        }
         else if (error == OTA_CONNECT_ERROR)
-        {
             err = "Connect Failed";
-        }
         else if (error == OTA_RECEIVE_ERROR)
-        {
             err = "Receive Failed";
-        }
         else if (error == OTA_END_ERROR)
-        {
             err = "End Failed";
-        }
 
         snprintf(otaError, sizeof(otaError), "OTA error[%u]: ", error);
         prt(otaError);
@@ -953,9 +954,8 @@ bool doOTA()
     unsigned long startOTA = millis();
     prtn("waiting 60s for OTA");
     if (Config::HardwareFeatures::SSD1306)
-    {
-        printDisplay("WAIT OTA", 1000, true);
-    }
+        printDisplay("OTA 10 MIN", 1000, true);
+
     while (true)
     {
         ArduinoOTA.handle();
@@ -963,7 +963,8 @@ bool doOTA()
         if (millis() - startOTA > 600000)
         {
             prtn("OTA update was not started");
-            printDisplay("NO OTA", 1000, true);
+            if (Config::HardwareFeatures::SSD1306)
+                printDisplay("NO OTA", 1000, true);
             return false;
         }
         yield();
@@ -985,7 +986,8 @@ void triggerFunctionWhileGrounded(int pin)
     while (digitalRead(pin) == LOW)
     {
         prtn("trigger mode");
-        printDisplay("TRIG MODE", 10, true);
+        if (Config::HardwareFeatures::SSD1306)
+            printDisplay("TRIG MODE", 10, true);
 
         /* Wait until the button is released. */
         yield();
@@ -1054,7 +1056,7 @@ void loop()
 
     // Use non-blocking code.
     if (Config::HardwareFeatures::DS3231
-        && currentMillis - previousMillisTimestampUpdate >= Config::Rtc::RTC_UPDATE_TIMEOUT_MS)
+        && currentMillis - previousMillisTimestampUpdate >= Config::Rtc::RTC_GET_UPDATE_FREQUENCY_MS)
     {
         previousMillisTimestampUpdate = currentMillis;
 
@@ -1108,8 +1110,8 @@ void loop()
         if (Config::HardwareFeatures::SSD1306 && Config::Display::PERIODIC_COLOR_INVERT)
             invertDisplayColors();
 
-        gasState = Config::HardwareFeatures::MQ_2 ? digitalRead(Config::Pins::Digital::NOSE) : HIGH;
-        float gasConcentration = Config::HardwareFeatures::MQ_2 ? (float) analogRead(Config::Pins::Analog::NOSE) + Config::Sensor::MeasurmentOffset::GAS_VOLTS : 0.0;
+        gasState = Config::HardwareFeatures::MQ_2 ? digitalRead(Config::Pins::Digital::MQ_2) : HIGH;
+        float gasConcentration = Config::HardwareFeatures::MQ_2 ? (float) analogRead(Config::Pins::Analog::MQ_2) + Config::Sensor::MeasurmentOffset::GAS_VOLTS : 0.0;
         float temperatureCelsius, temperatureCelsiusDs3231, temperatureCelsiusDht11;
         getTemperatureCelsius(temperatureCelsius, temperatureCelsiusDs3231, temperatureCelsiusDht11);
 
@@ -1136,8 +1138,7 @@ void loop()
         averageGasReadingVolts = (averageGasReading / 1023) * 5;
         snprintf(averageGasReadingNormalizedChar, sizeof(averageGasReadingNormalizedChar), "%.6f", averageGasReadingVolts);
 
-        char iso8601Timestamp[30];
-        epochToIso8601(dTimeNow.unixtime(), iso8601Timestamp);
+        epochToIso8601(dTimeNow.unixtime(), iso8601Timestamp, sizeof(iso8601Timestamp));
         Config::HardwareFeatures::DS3231 ? iso8601Timestamp : "";
 
         prt("MQ2 sensor avg V: ");
@@ -1211,7 +1212,7 @@ void loop()
             case 5:
                 printDisplay("TRIGGERS", 333, true);
                 printDisplay("WITH GPIO", 333, true);
-                snprintf(displayData, sizeof(displayData), "%s + GND", Config::Pins::Digital::SELF_TEST);
+                snprintf(displayData, sizeof(displayData), "%d + GND", Config::Pins::Digital::SELF_TEST);
                 printDisplay(displayData, 333, true);
                 printDebugCounter += 1;
                 break;
@@ -1231,17 +1232,23 @@ void loop()
         }
     }
 
-    if (currentMillis - previousMillisNetworkCheck >= Config::Network::SEND_DATA_FREQUENCY_MS)
+    if (!Config::Wifi::WORK_OFFLINE
+       && Config::HardwareFeatures::DS3231
+       && currentMillis - previousMillisSetUpdateRTC >= Config::Rtc::RTC_SET_UPDATE_FREQUENCY_MS
+       && WiFi.status() == WL_CONNECTED)
+        {
+            previousMillisSetUpdateRTC = currentMillis;
+            syncRTC();
+        }
+
+    if (!Config::Wifi::WORK_OFFLINE
+       && currentMillis - previousMillisNetworkCheck >= Config::Network::SEND_DATA_FREQUENCY_MS)
     {
         previousMillisNetworkCheck = currentMillis;
 
         // Avoid busy waiting if not connected.
         if (WiFi.status() == WL_CONNECTED)
         {
-            // Update the time.
-            if (Config::HardwareFeatures::DS3231)
-                syncRTC();
-
             if (Config::Network::SEND_TO_API && apiClient != nullptr)
             {
                 prt("connecting to ");
@@ -1288,12 +1295,11 @@ void loop()
 
     if (!Config::Wifi::WORK_OFFLINE && checkWifi % 10 == 0 && WiFi.status() != WL_CONNECTED)
     {
-        // This block is never called in offline mode.
-
         /* See also
          * https://github.com/tzapu/WiFiManager/issues/1588#issue-1670081323
          */
         wm.setConfigPortalTimeout(0);
+        
         prtn("WiFi is disconnected");
         if (Config::HardwareFeatures::SSD1306)
             printDisplay("NO WiFi\nretrying...");
