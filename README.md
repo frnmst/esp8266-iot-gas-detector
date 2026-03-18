@@ -10,6 +10,15 @@
 
 This project uses an ESP8266 board. Follow [these](https://arduino-esp8266.readthedocs.io/en/latest/installing.html) instructions to set it up.
 
+### Update `sketch.yml` file
+
+1. [install arduino-cli](https://arduino.github.io/arduino-cli/1.4/installation/)
+2. compile the project and dump the profile
+
+   ```shell
+   make generate-sketch-project-file
+   ```
+
 ### USB modem setup
 
 #### Debian GNU/Linux 13

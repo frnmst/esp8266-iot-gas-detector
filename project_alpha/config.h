@@ -53,6 +53,9 @@ struct Config {
         struct Auth {
             static const char *PASSWORD_MD5_HASH;
         };
+        struct Generic {
+            static const char *HOSTNAME;
+        };
     };
 
     struct Wifi {
@@ -93,7 +96,8 @@ struct Config {
     };
 
     struct Rtc {
-        static const int unsigned RTC_UPDATE_TIMEOUT_MS = 500;
+        static const int unsigned RTC_GET_UPDATE_FREQUENCY_MS = 500;
+        static const int unsigned RTC_SET_UPDATE_FREQUENCY_MS = 3600;
     };
 
     struct Sensor {
@@ -159,8 +163,8 @@ struct Config {
         /* These strings are displayed randomly during the MQ-5 warmup phase.
          * Easer egg!
          */
-        static const String TEXT[];
-        static const int TEXT_LENGTH = 18;
+        static const char* TEXT[];
+        static const int TEXT_LENGTH;
     };
 
     struct Other {
@@ -197,20 +201,5 @@ const int Config::Triggers::GAS_ALARM_TENDENCY_ITERATIONS = 512;
 
 /* Warmup phase. */
 const char* Config::Other::GAS_ALARM_TEXT = "GAS ALARM!";
-const String Config::WarmingUpInfo::TEXT [] = {
-    "REST API",
-    "Time",
-    "Date",
-    "RTC",
-    "DS3231 (w/ temp sensor)",
-    "DHT11",
-    "SSD1306",
-    "ESP8266",
-    "MQ-2",
-    "MQ-7",
-    "Buzzer",
-    "WiFi",
-    "ver. " + String(VERSION),
-};
 
 #endif // CONFIG_H

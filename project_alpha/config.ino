@@ -39,9 +39,6 @@ const int Config::Sensor::Setting::MQ_2_WARM_UP_MS = 60000;
 // Time in ms between readings during the initial boot phase.
 const unsigned int Config::Sensor::Setting::BOOT_READING_TIMEOUT_MS = 1200;
 
-// Ser to true if you want to use the built-in LED to show the board is working.
-const bool Config::Other::ENABLE_LED_HEARTBEAT = true;
-
 /* Settings applied if Config::Wifi::MANUAL == true.
  * Set these if you don't want to use the WiFi wizard (not recommended).
  */
