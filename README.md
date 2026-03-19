@@ -1,6 +1,6 @@
 # esp8266-iot-gas-detector
 
-## Electric schema
+## Electric schema [^1]
 
 ![./kicad/](kicad/gas_sensor.png)
 
@@ -251,3 +251,32 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+[^1]: If you use the DS3231 module, specifically the MW-084, with a standard
+    CR2032 battery, like the ones sold with these cheap chinese modules, apparently
+    there is a charging circuit you need to remove. I measured 5V going into the
+    battery because I noticed that a brand new high quality CR2032 battery
+    discharged in a few weeks when it is supposed to last years. Of course you
+    shouldn't charge non-rechargable batteries 
+
+    Firstly I removed the `201` resistor near the orange diode (just on top of the
+    replicated `SCL` pin, and I still got 3V. I didn't measure the amps. I then
+    removed the orange diode and at that moment i noticed the power LED stayed on,
+    powered by the battery only. I measured 0.1V on the 2 pads of the LED so ot was
+    very dim.
+
+    I removed the LED as well to save energy. However I noticed the RTC wasn't probably
+    able to trigger the battery mode anymore, since the clock was stuck while
+    the rtc wasn't powered by the circuit's 5V, i.e. when powered off. That diode
+    removal operation has probably broken something inside.
+
+    I then noticed ~0.9V on the VCC and GND pins of the module, just coming from
+    the battery, not the circuit. It was 0V before the mod. I proceded to re-solder
+    the diode but nothing changed.
+
+    So the alternative is either to find an appropriate rechargable battery or
+    capacitor, or see if by just removing the R201 the whole system can work with
+    a standard CR2032.
+
+    See also:
+    - https://forum.arduino.cc/t/zs-042-ds3231-rtc-module/268862
+    - https://thecavepearlproject.org/2014/05/21/using-a-cheap-3-ds3231-rtc-at24c32-eeprom-from-ebay/
