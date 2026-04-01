@@ -108,6 +108,8 @@ const char* Config::WarmingUpInfo::TEXT [] = {
     "https://codeberg.org/frnmst/esp8266-iot-gas-detector",
     ("ver. %s", VERSION),
 };
+
+/* Number of elements in the array pointer. */
 const int Config::WarmingUpInfo::TEXT_LENGTH = 15;
 
 /* Display rotation 
@@ -120,4 +122,29 @@ const int Config::Display::ROTATION = 0;
 
 // Set to true if you want to use the built-in LED to show the board is working.
 const bool Config::Other::ENABLE_LED_HEARTBEAT = true;
+
+/* Set a compatible POSIX timezone string. See the following list:
+ * https://raw.githubusercontent.com/nayarsystems/posix_tz_db/refs/heads/master/zones.csv
+ * Set value if for "Europe/Rome"
+ */
+const char* Config::DateTime::Tz::POSIX = "CET-1CEST,M3.5.0,M10.5.0/3";
+
+// Use exactly 3 NTP servers.
+const char* Config::DateTime::NTP_SERVERS[] = {"ntp1.inrim.it", "pool.ntp.org", "time.nist.gov"};
+
+/* Time adjustment used only with DS3231 in offline mode:
+ *
+ * Config::Wifi::WORK_OFFLINE = true
+ *
+ * and
+ *
+ * Config::HardwareFeatures::DS3231 = true.
+ *
+ * Compensate for local to UTC seconds difference.
+ *
+ * e.g., for Europe/Rome:
+ * On sketch compilation between Oct and Mar set -3600.
+ * On sketch compilation between Apr and Feb set -7200.
+ */
+const long Config::DateTime::Tz::COMPUTER_NAIVE_TIME_TO_UTC_SECONDS_OFFSET = -7200;
 #endif

@@ -38,13 +38,11 @@
 #endif
 #include <ArduinoJson.h>
 #include <ArduinoOTA.h>
-#include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <WiFiManager.h>
 #include <TimeLib.h>
-#include <Timezone.h>
 #include "RTClib.h"
 #include "uptime.h"
 
@@ -59,7 +57,6 @@ DHT dht(Config::Pins::Digital::DHT_11, Config::Sensor::Setting::DHT_TYPE);
 
 // Data structures.
 WiFiManager wm;
-Timezone localTZ(Config::DateTime::Tz::DST, Config::DateTime::Tz::STD);
 float gasSensorReadings[Config::Sensor::Setting::READINGS_BUFFER];
 float temperatureSensorReadings[Config::Sensor::Setting::READINGS_BUFFER];
 float humiditySensorReadings[Config::Sensor::Setting::READINGS_BUFFER];
@@ -71,10 +68,6 @@ int gasState, gasTendency = 0;
 char temperatureRelativeTendency = 0, humidityRelativeTendency = 0;
 bool inverted = false, gasDetected = false;
 unsigned long previousMillis = 0, previousMillisNetworkCheck = 0, previousMillisBuiltinLedHeartbeat = 0, previousMillisTimestampUpdate = 0, previousMillisDisplayData = 0, previousMillisDisplayDebugData = 0, previousMillisSetUpdateRTC = 0;
-// Create a UDP instance.
-WiFiUDP udp;
-// Create an NTPClient instance: always work in UTC.
-NTPClient timeClient(udp, Config::DateTime::NTP_SERVER, 0);
 int checkWifi = 1, printDebugCounter = 0;
 int builtinLedBrightness = 0, builtinLedFadeAmount = 5;
 const long builtinLedHeartbeatInterval = 50;
@@ -82,7 +75,7 @@ char dTime[16], dDate[32];
 DateTime dTimeNow = DateTime();
 WiFiClient* apiClient = nullptr;
 
-char iso8601Timestamp[26];
+char iso8601Timestamp[32];
 
 /* Button action triggers. */
 typedef bool (*ActionFunc)();
@@ -153,22 +146,6 @@ void signal(int repetitions = 2, bool invertColors = false, int lengthMs = Confi
         if (Config::HardwareFeatures::SSD1306 && invertColors)
             invertDisplayColors();
     }
-}
-
-void epochToIso8601(unsigned long epoch, char *iso8601, size_t iso8601Length)
-{
-    // Create a time structure.
-    struct tm timeinfo;
-
-    // Cast.
-    time_t epochTime = (time_t) epoch;
-
-     // Convert epoch to UTC time.
-    gmtime_r(&epochTime, &timeinfo);
-
-    // Format the time as ISO 8601.
-    if (strftime(iso8601, iso8601Length, "%Y-%m-%d %H:%M:%S %z", &timeinfo) == 0)
-        prtn("strftime buffer error");
 }
 
 void buildJson(JsonDocument &doc)
@@ -442,11 +419,10 @@ bool connectAutoWifi()
 
 bool syncRTC()
 {
-    if (timeClient.update())
+    time_t utcNow = time(nullptr); 
+    if (utcNow > 1000000000L)
     {
-        time_t localTime = localTZ.toLocal(timeClient.getEpochTime()) + Config::DateTime::Tz::COMPUTER_NAIVE_TIME_TO_UTC_SECONDS_OFFSET;
-        // Set the RTC with the epoch time + TZ offset from NTP.
-        rtc.adjust(DateTime(localTime));
+        rtc.adjust(DateTime(utcNow)); 
         return true;
     }
     else
@@ -545,6 +521,19 @@ void setup()
         printDisplay(versionString, 2000, false);
     }
 
+    /* Set time and TZ.
+     * setenv (...,...,1): the 1 overwrites previous values.
+     */
+    configTime(
+        0,
+        0,
+        Config::DateTime::NTP_SERVERS[0],
+        Config::DateTime::NTP_SERVERS[1],
+        Config::DateTime::NTP_SERVERS[2]
+    );
+    setenv("TZ", Config::DateTime::Tz::POSIX, 1);
+    tzset();
+
     if (Config::HardwareFeatures::DS3231)
     {
         if (rtc.lostPower() || sketchJustUploaded()) {
@@ -553,11 +542,8 @@ void setup()
             DateTime now = DateTime(F(__DATE__), F(__TIME__));
 
             // Compensate for local naive to UTC as well.
-            DateTime compensated_datetime = now + Config::DateTime::COMPILATION_SECONDS_OFFSET + Config::DateTime::Tz::COMPUTER_NAIVE_TIME_TO_UTC_SECONDS_OFFSET;
+            DateTime compensated_datetime = now.unixtime() + Config::DateTime::COMPILATION_SECONDS_OFFSET + Config::DateTime::Tz::COMPUTER_NAIVE_TIME_TO_UTC_SECONDS_OFFSET;
             rtc.adjust(compensated_datetime);
-            // This line sets the RTC with an explicit date & time, for example to set
-            // January 21, 2014 at 3am you would call:
-            // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
         }
     }
 
@@ -659,7 +645,7 @@ void setup()
 
     if (!Config::Wifi::WORK_OFFLINE)
     {
-        timeClient.begin();
+        // timeClient.begin();
         if (Config::HardwareFeatures::DS3231)
             syncRTC();
         apiClient = getHttpClient();
@@ -820,32 +806,22 @@ void invertDisplayColors()
         display.invertDisplay(false);
 }
 
-void getCurrentTime(DateTime now,  char *buffer, size_t length, const char* format = Config::DateTime::Format::TIME)
+void getCurrentTime(const struct tm* now,  char *buffer, size_t length, const char* format = Config::DateTime::Format::TIME)
 {
-    struct tm timeinfo;
-
-    timeinfo.tm_hour = now.hour();
-    timeinfo.tm_min = now.minute();
-    timeinfo.tm_sec = now.second();
-
-    // Not considering daylight saving time: datetime provided to this function is naive.
-    timeinfo.tm_isdst = 0;
-
-    strftime(buffer, length, format, &timeinfo);
+    if (strftime(buffer, length, format, now) == 0)
+        prtn("strftime buffer error");
 }
 
-void getCurrentDate(DateTime now, char *buffer, size_t length, const char* format = Config::DateTime::Format::DATE)
+void getCurrentDate(const struct tm* now, char *buffer, size_t length, const char* format = Config::DateTime::Format::DATE)
 {
-    struct tm dateinfo;
+    if (strftime(buffer, length, format, now) == 0)
+        prtn("strftime buffer error");
+}
 
-    dateinfo.tm_year = now.year() - 1900; // Year since 1900.
-    dateinfo.tm_mon = now.month() - 1;    // Month (0-11).
-    dateinfo.tm_mday = now.day();         // Day of the month (1-31).
-
-    // Not considering daylight saving time: datetime provided to this function is naive.
-    dateinfo.tm_isdst = 0;
-
-    strftime(buffer, length, format, &dateinfo);
+void getCurrentISO8601(const struct tm* now, char *buffer, size_t length)
+{
+    if (strftime(buffer, length, "%Y-%m-%d %H:%M:%S %z", now) == 0)
+        prtn("strftime buffer error");
 }
 
 void raiseGasAlarm()
@@ -1054,27 +1030,32 @@ void loop()
     char dummy2 = 0;
     unsigned long currentMillis = millis();
 
-    // Use non-blocking code.
-    if (Config::HardwareFeatures::DS3231
-        && currentMillis - previousMillisTimestampUpdate >= Config::Rtc::RTC_GET_UPDATE_FREQUENCY_MS)
+    if (currentMillis - previousMillisTimestampUpdate >= Config::Rtc::RTC_GET_UPDATE_FREQUENCY_MS)
     {
         previousMillisTimestampUpdate = currentMillis;
 
-        // Read the time from the RTC.
-        dTimeNow = rtc.now();
+        if (Config::HardwareFeatures::DS3231)
+        {
+            // Read the time from the RTC.
+            dTimeNow = rtc.now();
 
-        // Set the board time.
-        setTime(dTimeNow.unixtime());
-
-        TimeChangeRule *tcr;
-        // current time from the Time Library.
-        time_t utc = now();
-        // Transform the board time to localtime.
-        time_t localTime = localTZ.toLocal(utc, &tcr);
-
-        getCurrentTime(localTime, dTime, sizeof(dTime));
-        getCurrentDate(localTime, dDate, sizeof(dDate));
+            // Set the board time.
+            setTime(dTimeNow.unixtime());
+        }
+        else if (!Config::Wifi::WORK_OFFLINE)
+        {
+            time_t now_system = time(nullptr);
+            if (now_system > 1000000000L)
+                setTime(now_system);
+        }
     }
+
+    // current time from the Time Library.
+    time_t utc = now();
+    struct tm *localTimeStruct = localtime(&utc);
+
+    getCurrentTime(localTimeStruct, dTime, sizeof(dTime));
+    getCurrentDate(localTimeStruct, dDate, sizeof(dDate));
 
     if (currentMillis - previousMillisDisplayData >= Config::Display::DISPLAY_TIMEOUT_MS && !gasDetected)
     {
@@ -1084,22 +1065,36 @@ void loop()
         if (Config::HardwareFeatures::SSD1306)
         {
             clearDisplay();
-            if (Config::HardwareFeatures::DS3231)
+
+            if (Config::HardwareFeatures::DS3231 || !Config::Wifi::WORK_OFFLINE)
             {
                 display.println(dTime);
                 display.println(dDate);
-                displayTemperatureCelsius(averageTemperatureReading, temperatureRelativeTendency);
             }
+            else
+            {
+                uptime::calculateUptime();
+                display.println("UPTIME");
+                display.print(uptime::getDays());
+                display.print("d");
+                display.print(uptime::getHours());
+                display.print("h");
+                display.print(uptime::getMinutes());
+                display.print(":");
+                display.println(uptime::getSeconds());
+            }
+
+            if (Config::HardwareFeatures::DS3231 || Config::HardwareFeatures::DHT11)
+                displayTemperatureCelsius(averageTemperatureReading, temperatureRelativeTendency);
+
             if (Config::HardwareFeatures::DHT11)
             {
-                if (!Config::HardwareFeatures::DS3231)
-                    displayTemperatureCelsius(averageTemperatureReading, temperatureRelativeTendency);
                 display.print(averageHumidityReading, 2);
                 display.print(" %H ");
                 display.println(humidityRelativeTendency);
             }
-            if (Config::HardwareFeatures::DS3231 || Config::HardwareFeatures::DHT11)
-                display.display();
+            
+            display.display();
         }
     }
     
@@ -1138,8 +1133,8 @@ void loop()
         averageGasReadingVolts = (averageGasReading / 1023) * 5;
         snprintf(averageGasReadingNormalizedChar, sizeof(averageGasReadingNormalizedChar), "%.6f", averageGasReadingVolts);
 
-        epochToIso8601(dTimeNow.unixtime(), iso8601Timestamp, sizeof(iso8601Timestamp));
-        Config::HardwareFeatures::DS3231 ? iso8601Timestamp : "";
+        getCurrentISO8601(localTimeStruct, iso8601Timestamp, sizeof(iso8601Timestamp));
+        // Config::HardwareFeatures::DS3231 ? iso8601Timestamp : "";
 
         prt("MQ2 sensor avg V: ");
         prtn(averageGasReadingVolts);
