@@ -130,14 +130,18 @@ WiFiClient* getHttpClient()
         return new WiFiClient();
 }
 
-void signal(int repetitions = 2, bool invertColors = false, int lengthMs = Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_DELAY_MS)
+void signal(int repetitions = 2, bool invertColors = false, int lengthMs = Config::Sensor::Alarm::BUZZER_SENSOR_ERROR_DELAY_MS, bool buzzer = true)
 {
     for (int i = 0; i < repetitions; i++)
     {
-        digitalWrite(Config::Pins::Digital::BUZZER, HIGH);
+        if (buzzer)
+            digitalWrite(Config::Pins::Digital::BUZZER, HIGH);
+
         digitalWrite(Config::Pins::Digital::LED, LOW);  // Turn the LED on (Note that LOW is the voltage level but actually the LED is on; this is because it is active low on the ESP-01)
         delay(lengthMs);
-        digitalWrite(Config::Pins::Digital::BUZZER, LOW);
+        if (buzzer)
+            digitalWrite(Config::Pins::Digital::BUZZER, LOW);
+
         digitalWrite(Config::Pins::Digital::LED, HIGH);  // Turn the LED off by making the voltage HIGH
 
         if (i < repetitions - 1)
@@ -1251,6 +1255,7 @@ void loop()
                 if (!apiClient->connect(Config::Network::HOST, Config::Network::PORT))
                 {
                     prtn("connection failed, ignoring...");
+                    signal(4, false, 100, false);
                     apiClient->stop();
                 }
                 else
@@ -1258,14 +1263,13 @@ void loop()
                     JsonDocument doc;
                     buildJson(doc);
                     sendJSONRequest(*apiClient, doc);
+                    #ifdef PRINT_DEBUG
+                        sendJSONRequest(Serial, doc);
+                        prtn();
+                    #endif
 
                     if (Config::Network::DEBUG)
                     {
-                        #ifdef PRINT_DEBUG
-                            sendJSONRequest(Serial, doc);    
-                        #endif
-
-                        // Read the response.
                         while (apiClient->connected() || apiClient->available())
                         {
                             if (apiClient->available())
@@ -1278,6 +1282,33 @@ void loop()
                             }
                         }
                     }
+                    else
+                    {
+                        // While the server is not available, or if there is no content yet, wait up to 2 seconds.
+                        unsigned long timeout = millis();
+                        while (apiClient->available() == 0 && millis() - timeout < 2000)
+                            yield();
+
+                        if (apiClient->available())
+                        {
+                            char HTTPstatusLine[16];
+                            size_t n = apiClient->readBytes(HTTPstatusLine, 15);
+                            HTTPstatusLine[n] = '\0';
+
+                            if (!(
+                            strstr(HTTPstatusLine, "200") != NULL
+                            || strstr(HTTPstatusLine, "201") != NULL
+                            || strstr(HTTPstatusLine, "202") != NULL)
+                            )
+                                signal(4, false, 100, false);
+
+                            prt("network packet HTTP status: ");
+                            prtn(HTTPstatusLine);
+                        }
+                        else
+                            signal(4, false, 100, false);
+                    }
+
                     apiClient->stop();
                 }
             }

@@ -42,7 +42,8 @@ const char* Config::DateTime::Format::DATE = "%Y-%m-%d";
 const bool Config::Wifi::WORK_OFFLINE = false;
 
 // true to see the response from the server on serial.
-const bool Config::Network::DEBUG = true;
+const bool Config::Network::DEBUG = false;
+
 const bool Config::Network::SEND_TO_API = false;
 const char* Config::Network::HOST = "my.remote.server";
 const int Config::Network::PORT = 443;
@@ -101,7 +102,7 @@ const char* Config::WarmingUpInfo::TEXT [] = {
     "SSD1306",
     "ESP8266",
     "MQ-2",
-    "MQ-7",
+    "MQ-135",
     "Buzzer",
     "WiFi",
     "frnmst",
