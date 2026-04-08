@@ -1,5 +1,28 @@
 # esp8266-iot-gas-detector
 
+<!--TOC-->
+
+- [esp8266-iot-gas-detector](#esp8266-iot-gas-detector)
+  - [Electric schema \[^1\]](#electric-schema-1)
+  - [Deployment \[^1\]](#deployment-1)
+    - [IDE Setup](#ide-setup)
+    - [Update `sketch.yml` file](#update-sketchyml-file)
+    - [USB modem setup](#usb-modem-setup)
+      - [Debian GNU/Linux 13](#debian-gnulinux-13)
+    - [Secrets file](#secrets-file)
+    - [Home Assistant setup](#home-assistant-setup)
+  - [Libraries](#libraries)
+  - [Boards](#boards)
+    - [ESP8266 D1 mini](#esp8266-d1-mini)
+      - [Special pin triggers](#special-pin-triggers)
+      - [Power usage](#power-usage)
+    - [ESP32](#esp32)
+  - [Version](#version)
+  - [License](#license)
+  - [Footnotes](#footnotes)
+
+<!--TOC-->
+
 ## Electric schema [^1]
 
 ![./kicad/](kicad/gas_sensor.png)
@@ -180,6 +203,7 @@ Arduino IDE:
 
 | Library name | Author |
 |--------------|--------|
+| [Time](https://github.com/paulstoffregen/time) | [Michael Margolis](https://playground.arduino.cc/Code/Time/)
 | [Adafruit SSD1306](https://github.com/adafruit/Adafruit_SSD1306) | [Adafruit](https://www.adafruit.com/) |
 | [DHT sensor library](https://github.com/adafruit/DHT-sensor-library) | [Adafruit](https://www.adafruit.com/) |
 | [ArduinoJson](https://arduinojson.org) | [Benoît Blanchon](https://github.com/bblanchon) |

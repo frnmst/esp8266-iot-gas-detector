@@ -77,8 +77,6 @@ const char* Config::Wifi::SSID = "GasNose";
 // Password must be at least 8 characters.
 const char* Config::Wifi::PASSWORD = "gasnose_0000";
 
-const char* Config::DateTime::NTP_SERVER = "ntp1.inrim.it";
-
 // Fine tune calibration.
 const float Config::Sensor::MeasurmentOffset::TEMPERATURE_CELSIUS_DHT11 =  -0.5;
 const float Config::Sensor::MeasurmentOffset::TEMPERATURE_CELSIUS_DS3231 = -1.5;
