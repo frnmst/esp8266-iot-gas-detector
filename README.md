@@ -3,35 +3,133 @@
 <!--TOC-->
 
 - [esp8266-iot-gas-detector](#esp8266-iot-gas-detector)
-  - [Electric schema \[^1\]](#electric-schema-1)
+  - [Boards](#boards)
+    - [ESP8266 D1 mini](#esp8266-d1-mini)
+      - [Electric schema \[^1\]](#electric-schema-1)
+      - [Special pin triggers](#special-pin-triggers)
+      - [Power usage](#power-usage)
+    - [ESP32](#esp32)
   - [Deployment \[^1\]](#deployment-1)
+    - [Libraries](#libraries)
     - [IDE Setup](#ide-setup)
     - [Update `sketch.yml` file](#update-sketchyml-file)
     - [USB modem setup](#usb-modem-setup)
       - [Debian GNU/Linux 13](#debian-gnulinux-13)
     - [Secrets file](#secrets-file)
     - [Home Assistant setup](#home-assistant-setup)
-  - [Libraries](#libraries)
-  - [Boards](#boards)
-    - [ESP8266 D1 mini](#esp8266-d1-mini)
-      - [Special pin triggers](#special-pin-triggers)
-      - [Power usage](#power-usage)
-    - [ESP32](#esp32)
   - [Version](#version)
   - [License](#license)
   - [Footnotes](#footnotes)
 
 <!--TOC-->
 
-## Electric schema [^1]
+## Boards
+
+### ESP8266 D1 mini
+
+#### Electric schema [^1]
 
 ![./kicad/](kicad/gas_sensor.png)
 
+#### Special pin triggers
+
+Connect the two pins with a wire to trigger the function.
+
+```mermaid
+flowchart TD
+    %% Main Entry
+    MainLoop[Main Loop] --> TriggerFunc["triggerFunctionWhileGrounded(D7)"]
+    
+    %% Exit/Return Point (Logical link)
+    EndLoop{{Back to main loop}} -.-> MainLoop
+
+    subgraph TriggerFunction ["Trigger"]
+        TriggerFunc --> Debounce[Debounce: delay 50ms]
+        Debounce --> IsGrounded{Is pin D7 is pressed?}
+        
+        IsGrounded -- No --> EndLoop
+        
+        IsGrounded -- Yes --> WaitRelease["While pin is pressed:<br/>1. Show 'TRIG MODE'<br/>2. Wait"]
+        WaitRelease --> Released[D7 pin released]
+        Released --> Measure[Calculate time span]
+    end
+
+    %% Decision Tree
+    Measure --> B7{"Time amount (seconds)"}
+
+    %% 1. toggleDisplay
+    B7 -->|1s - 3s| C7["toggleDisplay()"]
+    C7 --> C7_Dec{Is display ON?}
+    C7_Dec -->|Yes| C7_Off[Turn OFF SSD1306]
+    C7_Dec -->|No| C7_On[Turn ON SSD1306]
+    C7_Off & C7_On --> EndLoop
+
+    %% 2. selfTest
+    B7 -->|3s - 5s| D7_Fn["selfTest()"]
+    D7_Fn --> D7_Run[Test all active hardware components]
+    D7_Run --> EndLoop
+
+    %% 3. doOTA
+    B7 -->|>= 5s| E7["doOTA()"]
+    
+    subgraph OTALogic [OTA Process]
+        E7 --> E7_Setup["Initialize ArduinoOTA"]
+        E7_Setup --> E7_Wait["Start 10 min timeout counter"]
+        E7_Wait --> E7_Loop{"ArduinoOTA.handle()"}
+        
+        E7_Loop -->|Success| E7_Restart([System Restart])
+        
+        E7_Loop -->|Error| E7_Err[Show Error]
+        E7_Loop -->|Timeout| E7_Tout["Show 'NO OTA'"]
+    end
+
+    E7_Err & E7_Tout --> EndLoop
+
+    %% Styling
+    %% style MainLoop fill:none,stroke:#333,stroke-width:2px
+    style EndLoop fill:none,stroke:#333,stroke-dasharray: 5 5
+    style E7_Restart fill:none,stroke:#333
+    style TriggerFunction fill:none,stroke:#999,stroke-dasharray: 5 5
+    style OTALogic fill:none,stroke:#999,stroke-dasharray: 5 5
+```
+
+#### Power usage
+
+| Components | mA   |
+|------------|-----:|
+| All        | 165  |
+| DS3231     | 7    |
+| DHT11      | 2    |
+| SSD1306    | 5    |
+| MQ-2       | 133  |
+
+### ESP32
+
+The sketch compiles and can run on an ESP32, although it has been tested
+without any sensor nor device. 
+
 ## Deployment [^1]
+
+### Libraries
+
+All these libraries are required as dependencies and can be installed via the
+Arduino IDE:
+
+| Library name | Author |
+|--------------|--------|
+| [Time](https://github.com/paulstoffregen/time) | [Michael Margolis](https://playground.arduino.cc/Code/Time/)
+| [Adafruit SSD1306](https://github.com/adafruit/Adafruit_SSD1306) | [Adafruit](https://www.adafruit.com/) |
+| [DHT sensor library](https://github.com/adafruit/DHT-sensor-library) | [Adafruit](https://www.adafruit.com/) |
+| [ArduinoJson](https://arduinojson.org) | [Benoît Blanchon](https://github.com/bblanchon) |
+| [WiFiManager](https://github.com/tzapu/WiFiManager) | [tzapu](https://github.com/tzapu/) |
+| [RTCLib](https://github.com/adafruit/RTClib) | [Adafruit](https://www.adafruit.com/) |
+| [Uptime-Library](https://github.com/YiannisBourkelis/Uptime-Library) | [Yiannis Bourkelis](https://github.com/YiannisBourkelis) |
 
 ### IDE Setup
 
-This project uses an ESP8266 board. Follow [these](https://arduino-esp8266.readthedocs.io/en/latest/installing.html) instructions to set it up.
+This project is designed to be used with an ESP8266 board.
+Follow [these](https://arduino-esp8266.readthedocs.io/en/latest/installing.html)
+instructions to set it up.
 
 ### Update `sketch.yml` file
 
@@ -195,102 +293,6 @@ payload.
            device_class: gas
            attributes: *esp_metadata
    ```
-
-## Libraries
-
-All these libraries are required as dependencies and can be installed via the
-Arduino IDE:
-
-| Library name | Author |
-|--------------|--------|
-| [Time](https://github.com/paulstoffregen/time) | [Michael Margolis](https://playground.arduino.cc/Code/Time/)
-| [Adafruit SSD1306](https://github.com/adafruit/Adafruit_SSD1306) | [Adafruit](https://www.adafruit.com/) |
-| [DHT sensor library](https://github.com/adafruit/DHT-sensor-library) | [Adafruit](https://www.adafruit.com/) |
-| [ArduinoJson](https://arduinojson.org) | [Benoît Blanchon](https://github.com/bblanchon) |
-| [WiFiManager](https://github.com/tzapu/WiFiManager) | [tzapu](https://github.com/tzapu/) |
-| [RTCLib](https://github.com/adafruit/RTClib) | [Adafruit](https://www.adafruit.com/) |
-| [Uptime-Library](https://github.com/YiannisBourkelis/Uptime-Library) | [Yiannis Bourkelis](https://github.com/YiannisBourkelis) |
-
-## Boards
-
-### ESP8266 D1 mini
-
-#### Special pin triggers
-
-Connect the two pins with a wire to trigger the function.
-
-```mermaid
-flowchart TD
-    %% Main Entry
-    MainLoop[Main Loop] --> TriggerFunc["triggerFunctionWhileGrounded(D7)"]
-    
-    %% Exit/Return Point (Logical link)
-    EndLoop{{Back to main loop}} -.-> MainLoop
-
-    subgraph TriggerFunction ["Trigger"]
-        TriggerFunc --> Debounce[Debounce: delay 50ms]
-        Debounce --> IsGrounded{Is pin D7 is pressed?}
-        
-        IsGrounded -- No --> EndLoop
-        
-        IsGrounded -- Yes --> WaitRelease["While pin is pressed:<br/>1. Show 'TRIG MODE'<br/>2. Wait"]
-        WaitRelease --> Released[D7 pin released]
-        Released --> Measure[Calculate time span]
-    end
-
-    %% Decision Tree
-    Measure --> B7{"Time amount (seconds)"}
-
-    %% 1. toggleDisplay
-    B7 -->|1s - 3s| C7["toggleDisplay()"]
-    C7 --> C7_Dec{Is display ON?}
-    C7_Dec -->|Yes| C7_Off[Turn OFF SSD1306]
-    C7_Dec -->|No| C7_On[Turn ON SSD1306]
-    C7_Off & C7_On --> EndLoop
-
-    %% 2. selfTest
-    B7 -->|3s - 5s| D7_Fn["selfTest()"]
-    D7_Fn --> D7_Run[Test all active hardware components]
-    D7_Run --> EndLoop
-
-    %% 3. doOTA
-    B7 -->|>= 5s| E7["doOTA()"]
-    
-    subgraph OTALogic [OTA Process]
-        E7 --> E7_Setup["Initialize ArduinoOTA"]
-        E7_Setup --> E7_Wait["Start 10 min timeout counter"]
-        E7_Wait --> E7_Loop{"ArduinoOTA.handle()"}
-        
-        E7_Loop -->|Success| E7_Restart([System Restart])
-        
-        E7_Loop -->|Error| E7_Err[Show Error]
-        E7_Loop -->|Timeout| E7_Tout["Show 'NO OTA'"]
-    end
-
-    E7_Err & E7_Tout --> EndLoop
-
-    %% Styling
-    %% style MainLoop fill:none,stroke:#333,stroke-width:2px
-    style EndLoop fill:none,stroke:#333,stroke-dasharray: 5 5
-    style E7_Restart fill:none,stroke:#333
-    style TriggerFunction fill:none,stroke:#999,stroke-dasharray: 5 5
-    style OTALogic fill:none,stroke:#999,stroke-dasharray: 5 5
-```
-
-#### Power usage
-
-| Components | mA   |
-|------------|-----:|
-| All        | 165  |
-| DS3231     | 7    |
-| DHT11      | 2    |
-| SSD1306    | 5    |
-| MQ-2       | 133  |
-
-### ESP32
-
-The sketch compiles and can run on an ESP32, although it has been tested
-without any sensor nor device. 
 
 ## Version
 
