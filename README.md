@@ -36,6 +36,7 @@
 Connect the two `D7` and `GND` pins with a wire or use a button to trigger
 these functions.
 
+
 ```mermaid
 flowchart TD
     %% Main Entry
@@ -62,8 +63,8 @@ flowchart TD
     B7 -->|0.05s - 1s| EndLoop
 
     %% 1. toggleDisplay
-        subgraph ToggleDisplayLogic [Toggle Display Process]
-        B7 -->|1s - 3s| C7["toggleDisplay()"]
+    B7 -->|1s - 3s| C7["toggleDisplay()"]
+    subgraph ToggleDisplayLogic [Toggle Display Process]
         C7 --> C7_Dec{Is display ON?}
         C7_Dec -->|Yes| C7_Off[Turn OFF SSD1306]
         C7_Dec -->|No| C7_On[Turn ON SSD1306]
@@ -72,12 +73,13 @@ flowchart TD
 
     %% 2. selfTest
     B7 -->|3s - 5s| D7_Fn["selfTest()"]
-    D7_Fn --> D7_Run[Test all active hardware components]
-    D7_Run --> EndLoop
+    subgraph SelfTestLogic [Self Test Process]
+        D7_Fn --> D7_Run[Test all active hardware components]
+        D7_Run --> EndLoop
+    end
 
     %% 3. doOTA
     B7 -->|>= 5s| E7["doOTA()"]
-    
     subgraph OTALogic [OTA Process]
         E7 --> E7_Setup["Initialize ArduinoOTA"]
         E7_Setup --> E7_Wait["Start 10 min timeout counter"]
@@ -88,7 +90,6 @@ flowchart TD
         E7_Loop -->|Error| E7_Err[Show Error]
         E7_Loop -->|Timeout| E7_Tout["Show 'NO OTA'"]
     end
-
     E7_Err & E7_Tout --> EndLoop
 
     %% Styling
