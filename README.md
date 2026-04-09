@@ -219,10 +219,63 @@ Arduino IDE:
 
 Connect the two pins with a wire to trigger the function.
 
-| Positive lead pin name | Positive lead GPIO id | Ground pin name | Function name | Timeout (ms) |
-|------------------------|-----------------------|-----------------|---------------|--------------|
-| D7 | 13 | GND | `selfTest()` | 500 <= timeout < 2000 |
-| D7 | 13 | GND | `doOTA()` | >= 2000 |
+```mermaid
+flowchart TD
+    %% Main Entry
+    MainLoop[Main Loop] --> TriggerFunc["triggerFunctionWhileGrounded(D7)"]
+    
+    %% Exit/Return Point (Logical link)
+    EndLoop{{Back to main loop}} -.-> MainLoop
+
+    subgraph TriggerFunction ["Trigger"]
+        TriggerFunc --> Debounce[Debounce: delay 50ms]
+        Debounce --> IsGrounded{Is pin D7 is pressed?}
+        
+        IsGrounded -- No --> EndLoop
+        
+        IsGrounded -- Yes --> WaitRelease["While pin is pressed:<br/>1. Show 'TRIG MODE'<br/>2. Wait"]
+        WaitRelease --> Released[D7 pin released]
+        Released --> Measure[Calculate time span]
+    end
+
+    %% Decision Tree
+    Measure --> B7{"Time amount (seconds)"}
+
+    %% 1. toggleDisplay
+    B7 -->|1s - 3s| C7["toggleDisplay()"]
+    C7 --> C7_Dec{Is display ON?}
+    C7_Dec -->|Yes| C7_Off[Turn OFF SSD1306]
+    C7_Dec -->|No| C7_On[Turn ON SSD1306]
+    C7_Off & C7_On --> EndLoop
+
+    %% 2. selfTest
+    B7 -->|3s - 5s| D7_Fn["selfTest()"]
+    D7_Fn --> D7_Run[Test all active hardware components]
+    D7_Run --> EndLoop
+
+    %% 3. doOTA
+    B7 -->|>= 5s| E7["doOTA()"]
+    
+    subgraph OTALogic [OTA Process]
+        E7 --> E7_Setup["Initialize ArduinoOTA"]
+        E7_Setup --> E7_Wait["Start 10 min timeout counter"]
+        E7_Wait --> E7_Loop{"ArduinoOTA.handle()"}
+        
+        E7_Loop -->|Success| E7_Restart([System Restart])
+        
+        E7_Loop -->|Error| E7_Err[Show Error]
+        E7_Loop -->|Timeout| E7_Tout["Show 'NO OTA'"]
+    end
+
+    E7_Err & E7_Tout --> EndLoop
+
+    %% Styling
+    %% style MainLoop fill:none,stroke:#333,stroke-width:2px
+    style EndLoop fill:none,stroke:#333,stroke-dasharray: 5 5
+    style E7_Restart fill:none,stroke:#333
+    style TriggerFunction fill:none,stroke:#999,stroke-dasharray: 5 5
+    style OTALogic fill:none,stroke:#999,stroke-dasharray: 5 5
+```
 
 #### Power usage
 
