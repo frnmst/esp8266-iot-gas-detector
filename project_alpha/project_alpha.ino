@@ -1,4 +1,4 @@
-/* version 0.14.0
+/* version 0.15.0
  *
  * MIT License
  *
@@ -57,9 +57,7 @@ DHT dht(Config::Pins::Digital::DHT_11, Config::Sensor::Setting::DHT_TYPE);
 
 // Data structures.
 WiFiManager wm;
-float gasSensorReadings[Config::Sensor::Setting::READINGS_BUFFER];
-float temperatureSensorReadings[Config::Sensor::Setting::READINGS_BUFFER];
-float humiditySensorReadings[Config::Sensor::Setting::READINGS_BUFFER];
+float gasSensorReadings[Config::Sensor::Setting::READINGS_BUFFER], temperatureSensorReadings[Config::Sensor::Setting::READINGS_BUFFER], humiditySensorReadings[Config::Sensor::Setting::READINGS_BUFFER];
 float averageGasReading, averageTemperatureReading, averageHumidityReading, gasTotal = 0.0, temperatureTotal = 0.0, humidityTotal = 0.0;
 float averageGasReadingVolts;
 char averageGasReadingNormalizedChar[32];
@@ -71,42 +69,10 @@ unsigned long previousMillis = 0, previousMillisNetworkCheck = 0, previousMillis
 int checkWifi = 1, printDebugCounter = 0;
 int builtinLedBrightness = 0, builtinLedFadeAmount = 5;
 const long builtinLedHeartbeatInterval = 50;
-char dTime[16], dDate[32];
+char dTime[16], dDate[32], iso8601Timestamp[32];
 DateTime dTimeNow = DateTime();
 WiFiClient* apiClient = nullptr;
-
-char iso8601Timestamp[32];
-
-/* Button action triggers. */
-typedef bool (*ActionFunc)();
-
-/* Triggers must be sorted by dsc thresholdMs. */
-struct Trigger {
-    ActionFunc action;
-    unsigned long thresholdMs;
-    bool needsWiFi;
-    const char* name;
-};
-
-/* Function prototype for triggers. */
-bool selfTest();
-bool doOTA();
-
-Trigger triggers[] = {
-    {
-        doOTA,
-        2000,
-        true,
-        "OTA"
-    },
-    {
-        selfTest,
-        500,
-        false,
-        "SELF_TEST"
-    }
-};
-const int numTriggers = sizeof(triggers) / sizeof(triggers[0]);
+const int numTriggers = sizeof(buttonTriggers) / sizeof(buttonTriggers[0]);
 
 #if PRINT_DEBUG
     #define prt(x) Serial.print(x)
@@ -500,6 +466,7 @@ void setup()
         Serial.flush();
 
     }
+    Wire.begin();
     setPins();
     
     while (!done)
@@ -695,6 +662,17 @@ bool ssd1306Init()
         display.setRotation(Config::Display::ROTATION);
         return ssd1306SelfTest();
     }
+}
+
+void ssd1306DeInit()
+{
+    // 1. Spegne fisicamente i pixel e il controller interno (risparmio energetico)
+    display.ssd1306_command(SSD1306_DISPLAYOFF);
+    
+    // 2. Libera la memoria RAM allocata per il buffer del display
+    // La libreria alloca dinamicamente circa 1KB per un display 128x64
+    display.clearDisplay();
+    display.display();
 }
 
 bool activeBuzzerInit()
@@ -953,6 +931,22 @@ bool doOTA()
     return true;
 }
 
+bool toggleDisplay()
+{
+    Config::HardwareFeatures::SSD1306 = !Config::HardwareFeatures::SSD1306;
+    if (Config::HardwareFeatures::SSD1306)
+    {
+        prtn("initializing SSD1306");
+        return ssd1306Init();
+    }
+    else
+    {
+        prtn("de-initializing SSD1306");
+        ssd1306DeInit();
+        return true;
+    }
+}
+
 void triggerFunctionWhileGrounded(int pin)
 {
     /* Debounce. */
@@ -976,33 +970,33 @@ void triggerFunctionWhileGrounded(int pin)
     unsigned long timeSpan = millis() - start;
     for (int i = 0; i < numTriggers; i++)
     {
-        if (timeSpan >= triggers[i].thresholdMs)
+        if (timeSpan >= buttonTriggers[i].thresholdMs)
         {
-            if (triggers[i].action != NULL)
+            if (buttonTriggers[i].action != NULL)
             {
                 /* Execute the longest action. */
-                if (triggers[i].needsWiFi && WiFi.status() == WL_CONNECTED)
+                if (buttonTriggers[i].needsWiFi && WiFi.status() == WL_CONNECTED)
                 {
-                    triggers[i].action();
-                    prtn(triggers[i].name);
+                    buttonTriggers[i].action();
+                    prtn(buttonTriggers[i].name);
                 }
-                else if (!triggers[i].needsWiFi)
+                else if (!buttonTriggers[i].needsWiFi)
                 {
-                    triggers[i].action();
-                    prtn(triggers[i].name);
+                    buttonTriggers[i].action();
+                    prtn(buttonTriggers[i].name);
                 }
-                else if (triggers[i].needsWiFi && WiFi.status() != WL_CONNECTED)
+                else if (buttonTriggers[i].needsWiFi && WiFi.status() != WL_CONNECTED)
                 {
                     /* Needs wifi and is not connected, just return.*/
                     prt("trigger ");
-                    prt(triggers[i].name);
+                    prt(buttonTriggers[i].name);
                     prtn(" needs WiFi and is not connected!");
 
                     if (Config::HardwareFeatures::SSD1306)
                     {
                         printDisplay("CHECK WiFi", 250, true);
                         printDisplay("TO TRIGGER", 250, true);
-                        printDisplay(triggers[i].name, 250, false);
+                        printDisplay(buttonTriggers[i].name, 250, false);
                     }
                     return;
                 }
@@ -1013,13 +1007,13 @@ void triggerFunctionWhileGrounded(int pin)
             else
             {
                 prt("trigger ");
-                prt(triggers[i].name);
+                prt(buttonTriggers[i].name);
                 prtn(" is undefined!");
 
                 if (Config::HardwareFeatures::SSD1306)
                 {
                     printDisplay("TRIGGER", 250, true);
-                    printDisplay(triggers[i].name, 250, false);
+                    printDisplay(buttonTriggers[i].name, 250, false);
                     printDisplay("UNDEFINED", 250, true);
                 }
                 return;
@@ -1156,6 +1150,15 @@ void loop()
         prtn(gasTendency);
         prt("ISO 8601: ");
         prtn(iso8601Timestamp);
+        if (!Config::Wifi::WORK_OFFLINE && WiFi.status() == WL_CONNECTED)
+        {
+            prt("SSID: ");
+            prtn(WiFi.SSID());
+            prt("RSSI: ");
+            prtn(WiFi.RSSI());
+            prt("IP: ");
+            prtn(WiFi.localIP());
+        }
 
         if (gasState == LOW
             || (!Config::Triggers::IGNORE_GAS_VOLTAGE && averageGasReadingVolts >= Config::Triggers::GAS_ALARM_VOLTS_THRESHOLD)

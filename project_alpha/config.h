@@ -1,4 +1,4 @@
-/* version 0.14.0
+/* version 0.15.0
  *
  * MIT License
  *
@@ -27,10 +27,26 @@
 
 #include "version.h"
 
+/* Button action triggers. */
+typedef bool (*ActionFunc)();
+
+/* Triggers must be sorted by dsc thresholdMs. */
+struct ButtonTrigger {
+    ActionFunc action;
+    unsigned long thresholdMs;
+    bool needsWiFi;
+    const char* name;
+};
+
+/* Function prototype for triggers. */
+bool toggleDisplay();
+bool selfTest();
+bool doOTA();
+
 struct Config {
     struct HardwareFeatures {
         static const bool DS3231;
-        static const bool SSD1306;
+        static bool SSD1306;
         static const bool DHT11;
         static const bool MQ_2;
         static const bool MQ_135;
@@ -179,6 +195,7 @@ struct Config {
         static const int BUILTIN_LED_HEARTBEAT_INTERVAL = 50;
     };
 };
+
 
 // Higher value means less sensitive.
 const float Config::Triggers::GAS_ALARM_VOLTS_THRESHOLD = 2.0;

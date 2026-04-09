@@ -1,4 +1,4 @@
-/* version 0.14.0
+/* version 0.15.0
  *
  * MIT License
  *
@@ -85,7 +85,7 @@ const float Config::Sensor::MeasurmentOffset::GAS_VOLTS = 0.0;
 
 /* Hardware features. Set to false to use on different hardware revisions. */
 const bool Config::HardwareFeatures::DS3231 = true;
-const bool Config::HardwareFeatures::SSD1306 = true;
+bool Config::HardwareFeatures::SSD1306 = true;
 const bool Config::HardwareFeatures::DHT11 = true;
 const bool Config::HardwareFeatures::MQ_2 = true;
 const bool Config::HardwareFeatures::MQ_135 = false;
@@ -146,4 +146,36 @@ const char* Config::DateTime::NTP_SERVERS[] = {"ntp1.inrim.it", "pool.ntp.org", 
  * On sketch compilation between Apr and Feb set -7200.
  */
 const long Config::DateTime::Tz::COMPUTER_NAIVE_TIME_TO_UTC_SECONDS_OFFSET = -7200;
+
+/* Triggers must be sorted by dsc thresholdMs.
+ *
+ * What follows is the C struct defined in config.h.
+ *
+ * struct ButtonTrigger {
+ *   ActionFunc action;
+ *   unsigned long thresholdMs;
+ *   bool needsWiFi;
+ *   const char* name;
+ *};
+ */
+ButtonTrigger buttonTriggers[] = {
+    {
+        doOTA,
+        5000,
+        true,
+        "OTA"
+    },
+    {
+        selfTest,
+        3000,
+        false,
+        "SELF_TEST"
+    },
+    {
+        toggleDisplay,
+        1000,
+        false,
+        "TOGGLE_DISPLAY"
+    }
+};
 #endif
