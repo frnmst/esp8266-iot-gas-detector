@@ -97,6 +97,8 @@ flowchart TD
     style EndLoop fill:none,stroke:#333,stroke-dasharray: 5 5
     style E7_Restart fill:none,stroke:#333
     style TriggerFunction fill:none,stroke:#999,stroke-dasharray: 5 5
+    style SelfTestLogic fill:none,stroke:#999,stroke-dasharray: 5 5
+    style ToggleDisplayLogic fill:none,stroke:#999,stroke-dasharray: 5 5
     style OTALogic fill:none,stroke:#999,stroke-dasharray: 5 5
 ```
 
