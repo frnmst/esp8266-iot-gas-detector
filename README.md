@@ -31,9 +31,10 @@
 
 ![./kicad/](kicad/gas_sensor.png)
 
-#### Special pin triggers
+#### Pin triggers
 
-Connect the two pins with a wire to trigger the function.
+Connect the two `D7` and `GND` pins with a wire or use a button to trigger
+these functions.
 
 ```mermaid
 flowchart TD
@@ -45,7 +46,7 @@ flowchart TD
 
     subgraph TriggerFunction ["Trigger"]
         TriggerFunc --> Debounce[Debounce: delay 50ms]
-        Debounce --> IsGrounded{Is pin D7 is pressed?}
+        Debounce --> IsGrounded{Is pin D7 still pressed?}
         
         IsGrounded -- No --> EndLoop
         
@@ -57,12 +58,17 @@ flowchart TD
     %% Decision Tree
     Measure --> B7{"Time amount (seconds)"}
 
+    %% 0. Not enough trigger time
+    B7 -->|0.05s - 1s| EndLoop
+
     %% 1. toggleDisplay
-    B7 -->|1s - 3s| C7["toggleDisplay()"]
-    C7 --> C7_Dec{Is display ON?}
-    C7_Dec -->|Yes| C7_Off[Turn OFF SSD1306]
-    C7_Dec -->|No| C7_On[Turn ON SSD1306]
-    C7_Off & C7_On --> EndLoop
+        subgraph ToggleDisplayLogic [Toggle Display Process]
+        B7 -->|1s - 3s| C7["toggleDisplay()"]
+        C7 --> C7_Dec{Is display ON?}
+        C7_Dec -->|Yes| C7_Off[Turn OFF SSD1306]
+        C7_Dec -->|No| C7_On[Turn ON SSD1306]
+        C7_Off & C7_On --> EndLoop
+    end
 
     %% 2. selfTest
     B7 -->|3s - 5s| D7_Fn["selfTest()"]
