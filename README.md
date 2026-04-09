@@ -33,7 +33,7 @@
 
 #### Pin triggers
 
-Connect the two `D7` and `GND` pins with a wire or use a button to trigger
+Connect the two `D7` (i.e. `GPIO13`) and `GND` pins with a wire or use a button to trigger
 these functions.
 
 
