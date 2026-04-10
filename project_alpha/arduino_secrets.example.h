@@ -41,8 +41,10 @@ const char* Config::DateTime::Format::DATE = "%Y-%m-%d";
 // Enable this if you want an airgap system.
 const bool Config::Wifi::WORK_OFFLINE = false;
 
-// true to see the response from the server on serial.
-const bool Config::Network::DEBUG = false;
+// true to see all the responses from the server on serial.
+const bool Config::Network::FULL_DEBUG = false;
+// true to see the request and a basic response from the server on serial.
+const bool Config::Network::BASIC_DEBUG = false;
 
 const bool Config::Network::SEND_TO_API = false;
 const char* Config::Network::HOST = "my.remote.server";

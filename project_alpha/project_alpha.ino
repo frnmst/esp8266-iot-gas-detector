@@ -64,7 +64,7 @@ char averageGasReadingNormalizedChar[32];
 static int gasIndex = 0, temperatureIndex = 0, humidityIndex = 0;
 int gasState, gasTendency = 0;
 char temperatureRelativeTendency = 0, humidityRelativeTendency = 0;
-bool inverted = false, gasDetected = false;
+bool inverted = false, gasDetected = false, showCurrentTimeOnly = false;
 unsigned long previousMillis = 0, previousMillisNetworkCheck = 0, previousMillisBuiltinLedHeartbeat = 0, previousMillisTimestampUpdate = 0, previousMillisDisplayData = 0, previousMillisDisplayDebugData = 0, previousMillisSetUpdateRTC = 0;
 int checkWifi = 1, printDebugCounter = 0;
 int builtinLedBrightness = 0, builtinLedFadeAmount = 5;
@@ -540,8 +540,9 @@ void setup()
     if (Config::HardwareFeatures::MQ_2 || Config::HardwareFeatures::MQ_135)
     {
         prtn("Warming up MQ sensors");
+        
         // Some MQ-* sensors (e.g. MQ-2) sense gas a few seconds after being powered.
-        // delay(4000);
+        delay(2000);
     }
 
     char easterEggString[64];
@@ -669,8 +670,7 @@ void ssd1306DeInit()
     // 1. Spegne fisicamente i pixel e il controller interno (risparmio energetico)
     display.ssd1306_command(SSD1306_DISPLAYOFF);
     
-    // 2. Libera la memoria RAM allocata per il buffer del display
-    // La libreria alloca dinamicamente circa 1KB per un display 128x64
+    // Clean the display.
     display.clearDisplay();
     display.display();
 }
@@ -947,6 +947,12 @@ bool toggleDisplay()
     }
 }
 
+bool toggleShowCurrentTimeOnly()
+{
+    showCurrentTimeOnly = !showCurrentTimeOnly;
+    return true;
+}
+
 void triggerFunctionWhileGrounded(int pin)
 {
     /* Debounce. */
@@ -1064,32 +1070,39 @@ void loop()
         {
             clearDisplay();
 
-            if (Config::HardwareFeatures::DS3231 || !Config::Wifi::WORK_OFFLINE)
+            if (showCurrentTimeOnly)
             {
-                display.println(dTime);
-                display.println(dDate);
+                printDisplay(dTime, 0, true, 2);
             }
             else
             {
-                uptime::calculateUptime();
-                display.println("UPTIME");
-                display.print(uptime::getDays());
-                display.print("d");
-                display.print(uptime::getHours());
-                display.print("h");
-                display.print(uptime::getMinutes());
-                display.print(":");
-                display.println(uptime::getSeconds());
-            }
+                if (Config::HardwareFeatures::DS3231 || !Config::Wifi::WORK_OFFLINE)
+                {
+                    display.println(dTime);
+                    display.println(dDate);
+                }
+                else
+                {
+                    uptime::calculateUptime();
+                    display.println("UPTIME");
+                    display.print(uptime::getDays());
+                    display.print("d");
+                    display.print(uptime::getHours());
+                    display.print("h");
+                    display.print(uptime::getMinutes());
+                    display.print(":");
+                    display.println(uptime::getSeconds());
+                }
 
-            if (Config::HardwareFeatures::DS3231 || Config::HardwareFeatures::DHT11)
-                displayTemperatureCelsius(averageTemperatureReading, temperatureRelativeTendency);
+                if (Config::HardwareFeatures::DS3231 || Config::HardwareFeatures::DHT11)
+                    displayTemperatureCelsius(averageTemperatureReading, temperatureRelativeTendency);
 
-            if (Config::HardwareFeatures::DHT11)
-            {
-                display.print(averageHumidityReading, 2);
-                display.print(" %H ");
-                display.println(humidityRelativeTendency);
+                if (Config::HardwareFeatures::DHT11)
+                {
+                    display.print(averageHumidityReading, 2);
+                    display.print(" %H ");
+                    display.println(humidityRelativeTendency);
+                }
             }
             
             display.display();
@@ -1267,11 +1280,14 @@ void loop()
                     buildJson(doc);
                     sendJSONRequest(*apiClient, doc);
                     #ifdef PRINT_DEBUG
-                        sendJSONRequest(Serial, doc);
-                        prtn();
+                        if (Config::Network::FULL_DEBUG || Config::Network::BASIC_DEBUG)
+                        {
+                            sendJSONRequest(Serial, doc);
+                            prtn();
+                        }
                     #endif
 
-                    if (Config::Network::DEBUG)
+                    if (Config::Network::FULL_DEBUG)
                     {
                         while (apiClient->connected() || apiClient->available())
                         {
@@ -1291,7 +1307,6 @@ void loop()
                         unsigned long timeout = millis();
                         while (apiClient->available() == 0 && millis() - timeout < 2000)
                             yield();
-
                         if (apiClient->available())
                         {
                             char HTTPstatusLine[16];
@@ -1305,8 +1320,11 @@ void loop()
                             )
                                 signal(4, false, 100, false);
 
-                            prt("network packet HTTP status: ");
-                            prtn(HTTPstatusLine);
+                            if (Config::Network::BASIC_DEBUG)
+                            {
+                                prt("network packet HTTP status: ");
+                                prtn(HTTPstatusLine);
+                            }
                         }
                         else
                             signal(4, false, 100, false);

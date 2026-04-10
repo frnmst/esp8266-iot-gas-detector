@@ -39,6 +39,7 @@ struct ButtonTrigger {
 };
 
 /* Function prototype for triggers. */
+bool toggleShowCurrentTimeOnly();
 bool toggleDisplay();
 bool selfTest();
 bool doOTA();
@@ -62,7 +63,8 @@ struct Config {
         static const char* WEBHOOK_ID;
         static const char* USER_AGENT;
         static const int SEND_DATA_FREQUENCY_MS;
-        static const bool DEBUG;
+        static const bool FULL_DEBUG;
+        static const bool BASIC_DEBUG;
     };
 
     struct OTA {
