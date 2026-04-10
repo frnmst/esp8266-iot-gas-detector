@@ -6,7 +6,7 @@
   - [Boards](#boards)
     - [ESP8266 D1 mini](#esp8266-d1-mini)
       - [Electric schema \[^1\]](#electric-schema-1)
-      - [Special pin triggers](#special-pin-triggers)
+      - [Pin triggers](#pin-triggers)
       - [Power usage](#power-usage)
     - [ESP32](#esp32)
   - [Deployment \[^1\]](#deployment-1)
@@ -36,7 +36,6 @@
 Connect the two `D7` (i.e. `GPIO13`) and `GND` pins with a wire or use a button to trigger
 these functions.
 
-
 ```mermaid
 flowchart TD
     %% Main Entry
@@ -62,8 +61,17 @@ flowchart TD
     %% 0. Not enough trigger time
     B7 -->|0.05s - 1s| EndLoop
 
-    %% 1. toggleDisplay
-    B7 -->|1s - 3s| C7["toggleDisplay()"]
+    %% 1. toggleShowCurrentTimeOnly
+    B7 -->|1s - 3s| Z7["toggleShowCurrentTimeOnly()"]
+    subgraph ToggleShowCurrentTimeOnlyLogic [Toggle Show Current Time Only Process]
+        Z7 --> Z7_Dec{Is toggle true?}
+        Z7_Dec -->|Yes| Z7_On[Just show time]
+        Z7_Dec -->|No| Z7_Off[Show normal data]
+        Z7_Off & Z7_On --> EndLoop
+    end
+
+    %% 2. toggleDisplay
+    B7 -->|3s - 5s| C7["toggleDisplay()"]
     subgraph ToggleDisplayLogic [Toggle Display Process]
         C7 --> C7_Dec{Is display ON?}
         C7_Dec -->|Yes| C7_Off[Turn OFF SSD1306]
@@ -71,15 +79,15 @@ flowchart TD
         C7_Off & C7_On --> EndLoop
     end
 
-    %% 2. selfTest
-    B7 -->|3s - 5s| D7_Fn["selfTest()"]
+    %% 3. selfTest
+    B7 -->|5s - 10s| D7_Fn["selfTest()"]
     subgraph SelfTestLogic [Self Test Process]
         D7_Fn --> D7_Run[Test all active hardware components]
         D7_Run --> EndLoop
     end
 
-    %% 3. doOTA
-    B7 -->|>= 5s| E7["doOTA()"]
+    %% 4. doOTA
+    B7 -->|>= 10s| E7["doOTA()"]
     subgraph OTALogic [OTA Process]
         E7 --> E7_Setup["Initialize ArduinoOTA"]
         E7_Setup --> E7_Wait["Start 10 min timeout counter"]
@@ -97,6 +105,7 @@ flowchart TD
     style EndLoop fill:none,stroke:#333,stroke-dasharray: 5 5
     style E7_Restart fill:none,stroke:#333
     style TriggerFunction fill:none,stroke:#999,stroke-dasharray: 5 5
+    style ToggleShowCurrentTimeOnlyLogic fill:none,stroke:#999,stroke-dasharray: 5 5
     style SelfTestLogic fill:none,stroke:#999,stroke-dasharray: 5 5
     style ToggleDisplayLogic fill:none,stroke:#999,stroke-dasharray: 5 5
     style OTALogic fill:none,stroke:#999,stroke-dasharray: 5 5
