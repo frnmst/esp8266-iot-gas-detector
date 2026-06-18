@@ -25,35 +25,45 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#include "common.h"
 #include "version.h"
 
 /* Button action triggers. */
 typedef bool (*ActionFunc)();
 
 /* Triggers must be sorted by dsc thresholdMs. */
+const int triggerThresholdMs = 500;
 struct ButtonTrigger {
     ActionFunc action;
-    unsigned long thresholdMs;
     bool needsWiFi;
     const char* name;
+    const char* displayName;
 };
 
 /* Function prototype for triggers. */
+bool togglePomodoroTimer();
 bool toggleShowCurrentTimeOnly();
 bool toggleDisplay();
 bool selfTest();
+bool toggleConfigPortal();
+bool togglePrintDebug();
 bool doOTA();
+bool noop();
+bool credits();
 
 struct Config {
+    struct Debug {
+        static bool PRINT;
+    };
     struct HardwareFeatures {
-        static const bool DS3231;
+        static bool DS3231;
         static bool SSD1306;
-        static const bool DHT11;
-        static const bool MQ_2;
-        static const bool MQ_135;
+        static bool DHT11;
+        static bool MQ_2;
+        static bool MQ_135;
     };
     struct Network {
-        static const bool SEND_TO_API;
+        static bool SEND_TO_API;
         static const char* HOST;
         static const int PORT;
         static const bool USE_SSL;
@@ -77,14 +87,16 @@ struct Config {
     };
 
     struct Wifi {
-        static const bool WORK_OFFLINE;
+        static const bool WORK_ONLINE;
         static const bool IGNORE_MISSING_WIFI_ON_MANUAL = true;
 
         // true to setup WiFi manually without the wizard.
-        static const bool MANUAL = false;
-        static const unsigned int WIFIMANAGER_CONFIG_PORTAL_TIMEOUT_SECONDS = 180;
+        static bool MANUAL;
+        static unsigned int WIFIMANAGER_CONFIG_PORTAL_TIMEOUT_SECONDS;
 
-        // In auto mode, these are the config access point credentials.
+        /* In auto mode, these are the config access point credentials.
+         * In manual mode these are the actual values of the AP.
+         */
         static const char* SSID;
         static const char* PASSWORD;
 
@@ -97,15 +109,15 @@ struct Config {
 
         struct Auto {
             /* Set to true if you need to wipe saved WiFi credentials from the ROM (WiFiManager),
-            * then push the sketch, then set it back to false before pushing it again.
-            * Config::Wifi::WORK_OFFLINE must be set to `false`.
-            */
-            static const bool CLEAR_WIFI_SETTINGS = false;
+             * then push the sketch, then set it back to false before pushing it again.
+             * Config::Wifi::WORK_ONLINE must be set to `true`.
+             */
+            static bool RESET_WIFI_SETTINGS;
         };
     };
 
     struct Display {
-        static const int ROTATION;
+        static int ROTATION;
         static const int WIDTH = 128;
         static const int HEIGHT = 64;
         static const bool PERIODIC_COLOR_INVERT = false;
@@ -133,10 +145,10 @@ struct Config {
         };
 
         struct MeasurmentOffset {
-            static const float TEMPERATURE_CELSIUS_DHT11;
-            static const float TEMPERATURE_CELSIUS_DS3231;
-            static const float HUMIDITY_PERCENT;
-            static const float GAS_VOLTS;
+            static float TEMPERATURE_CELSIUS_DHT11;
+            static float TEMPERATURE_CELSIUS_DS3231;
+            static float HUMIDITY_PERCENT;
+            static float GAS_VOLTS;
         };
 
         struct Alarm {
@@ -167,12 +179,12 @@ struct Config {
         static const char* NTP_SERVERS[];
         static const long COMPILATION_SECONDS_OFFSET;
         struct Tz {
-            static const char* POSIX;
+            static char POSIX[50];
             static const long COMPUTER_NAIVE_TIME_TO_UTC_SECONDS_OFFSET;
         };
         struct Format {
-            static const char* TIME;
-            static const char* DATE;
+            static char TIME[32];
+            static char DATE[32];
         };
     };
 
@@ -182,6 +194,10 @@ struct Config {
          */
         static const char* TEXT[];
         static const int TEXT_LENGTH;
+    };
+
+    struct Init{
+        static const int HARDWARE_OUTPUT_DELAY_MS = 50;
     };
 
     struct Other {
@@ -198,14 +214,6 @@ struct Config {
     };
 };
 
-
-// Higher value means less sensitive.
-const float Config::Triggers::GAS_ALARM_VOLTS_THRESHOLD = 2.0;
-
-// Raise the alarm if the raw value increases after Config::Triggers::GAS_ALARM_TENDENCY_ITERATIONS.
-const int Config::Triggers::GAS_ALARM_TENDENCY_ITERATIONS = 512;
-
-/* Warmup phase. */
-const char* Config::Other::GAS_ALARM_TEXT = "GAS ALARM!";
+#include "arduino_secrets.h"
 
 #endif // CONFIG_H

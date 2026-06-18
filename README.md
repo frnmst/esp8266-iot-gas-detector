@@ -6,9 +6,10 @@
   - [Boards](#boards)
     - [ESP8266 D1 mini](#esp8266-d1-mini)
       - [Electric schema \[^1\]](#electric-schema-1)
-      - [Pin triggers](#pin-triggers)
-      - [Power usage](#power-usage)
     - [ESP32](#esp32)
+      - [Initial testing](#initial-testing)
+  - [Pin triggers](#pin-triggers)
+  - [Power usage](#power-usage)
   - [Deployment \[^1\]](#deployment-1)
     - [Libraries](#libraries)
     - [IDE Setup](#ide-setup)
@@ -31,10 +32,19 @@
 
 ![./kicad/](kicad/gas_sensor.png)
 
-#### Pin triggers
+### ESP32
 
-Connect the two `D7` (i.e. `GPIO13`) and `GND` pins with a wire or use a button to trigger
-these functions.
+#### Initial testing
+
+| GPIO id | Usage |
+|---------|-------|
+| 19      | DHT 11 |
+| 21      | SDA   |
+| 22      | SCL   |
+
+## Pin triggers
+
+To trigger these functions, use `BUTTON_A`:
 
 ```mermaid
 flowchart TD
@@ -86,8 +96,17 @@ flowchart TD
         D7_Run --> EndLoop
     end
 
-    %% 4. doOTA
-    B7 -->|>= 10s| E7["doOTA()"]
+    %% 4. togglePrintDebug
+    B7 -->|10s - 15s| Y7["togglePrintDebug()"]
+    subgraph TogglePrintDebugLogic [Toggle Print Debug Process]
+        Y7 --> Y7_Dec{Is toggle true?}
+        Y7_Dec -->|Yes| Y7_On[Print debugs]
+        Y7_Dec -->|No| Y7_Off[No print debugs]
+        Y7_Off & Y7_On --> EndLoop
+    end
+
+    %% 5. doOTA
+    B7 -->|>= 15s| E7["doOTA()"]
     subgraph OTALogic [OTA Process]
         E7 --> E7_Setup["Initialize ArduinoOTA"]
         E7_Setup --> E7_Wait["Start 10 min timeout counter"]
@@ -108,10 +127,11 @@ flowchart TD
     style ToggleShowCurrentTimeOnlyLogic fill:none,stroke:#999,stroke-dasharray: 5 5
     style SelfTestLogic fill:none,stroke:#999,stroke-dasharray: 5 5
     style ToggleDisplayLogic fill:none,stroke:#999,stroke-dasharray: 5 5
+    style TogglePrintDebugLogic fill:none,stroke:#999,stroke-dasharray: 5 5
     style OTALogic fill:none,stroke:#999,stroke-dasharray: 5 5
 ```
 
-#### Power usage
+## Power usage
 
 | Components | mA   |
 |------------|-----:|
@@ -120,11 +140,6 @@ flowchart TD
 | DHT11      | 2    |
 | SSD1306    | 5    |
 | MQ-2       | 133  |
-
-### ESP32
-
-The sketch compiles and can run on an ESP32, although it has been tested
-without any sensor nor device. 
 
 ## Deployment [^1]
 
@@ -142,6 +157,7 @@ Arduino IDE:
 | [WiFiManager](https://github.com/tzapu/WiFiManager) | [tzapu](https://github.com/tzapu/) |
 | [RTCLib](https://github.com/adafruit/RTClib) | [Adafruit](https://www.adafruit.com/) |
 | [Uptime-Library](https://github.com/YiannisBourkelis/Uptime-Library) | [Yiannis Bourkelis](https://github.com/YiannisBourkelis) |
+| [AUnit](https://github.com/bxparks/AUnit) | [Brian Park](https://github.com/bxparks) |
 
 ### IDE Setup
 
