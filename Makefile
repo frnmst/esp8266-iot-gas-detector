@@ -24,7 +24,7 @@ ver := $(shell grep "#define VERSION \"" project_alpha/version.h | awk '{ print 
 
 bump:
 	echo $(ver)
-	find -regextype grep -regex './project_alpha/\(.*\.h\|.*\.ino\)' -exec sed -i 's/version [0-9]\+\.[0-9]\+\.[0-9]\+/version $(ver)/' {} \;
+	find -regextype grep -regex './project_alpha/\(.*\.h\|.*\.ino\|.*\.cpp\)' -exec sed -i 's/version [0-9]\+\.[0-9]\+\.[0-9]\+/version $(ver)/' {} \;
 	@echo "Remember to create a new git tag!"
 
 generate-sketch-project-file:
