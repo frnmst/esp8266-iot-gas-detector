@@ -42,6 +42,12 @@
 | 21      | SDA   |
 | 22      | SCL   |
 
+#### Electric schema [^1]
+
+Download this
+[ESP 32 D1 mini KiCad Footprint](https://github.com/besi/kicad-esp32-wemos-d1-mini)
+and import it in KiCad.
+
 ## Pin triggers
 
 To trigger these functions, use `BUTTON_A`:
