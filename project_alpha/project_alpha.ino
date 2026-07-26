@@ -435,7 +435,7 @@ void setup()
                 ssd1306DeInit();
         }
         if (Config::HardwareFeatures::DHT11)
-            ok = ok & dht11Init();
+            ok = ok & dht11Init(true);
         if (Config::HardwareFeatures::DS3231)
             ok = ok & ds3231Init();
         ok = ok & activeBuzzerInit();

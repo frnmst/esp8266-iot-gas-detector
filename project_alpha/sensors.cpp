@@ -1,7 +1,15 @@
 #include "sensors.h"
 
-bool dht11SelfTest()
+bool dht11SelfTest(bool boot)
 {
+    unsigned long int start = millis();
+    if (boot)
+    {
+        // Busy wait on boot: give enough time so that the DHT11 sensor is ready.
+        while (millis() - start < 4000 && isnan(dht.readHumidity()))
+            delay(250);
+    }
+
     if (isnan(dht.readHumidity()))
     {
         if (Config::HardwareFeatures::SSD1306)
@@ -17,10 +25,10 @@ bool dht11SelfTest()
     }
 }
 
-bool dht11Init()
+bool dht11Init(bool boot)
 {
     dht.begin();
-    return dht11SelfTest();
+    return dht11SelfTest(boot);
 }
 
 void getTemperatureCelsius(float &temperatureCelsius, float &tempCelsiusDs3231, float &tempCelsiusDht11)

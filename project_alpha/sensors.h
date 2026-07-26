@@ -8,8 +8,8 @@
 extern DHT dht;
 extern RTC_DS3231 rtc;
 
-bool dht11SelfTest();
-bool dht11Init();
+bool dht11SelfTest(bool boot = false);
+bool dht11Init(bool boot = false);
 void getTemperatureCelsius(float &temperatureCelsius, float &tempCelsiusDs3231, float &tempCelsiusDht11);
 void getHumidityPercent(float &humidityPercent);
 
